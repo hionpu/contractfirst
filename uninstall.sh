@@ -1,6 +1,6 @@
 #!/bin/bash
 # lowtech-tdd uninstaller
-# Usage: curl -fsSL https://raw.githubusercontent.com/QuietPizza/lowtech-tdd/main/uninstall.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/uninstall.sh | bash
 # Or with options:
 #   bash uninstall.sh --skill-only
 #   bash uninstall.sh --mcp-only

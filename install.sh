@@ -1,6 +1,6 @@
 #!/bin/bash
 # lowtech-tdd installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/QuietPizza/lowtech-tdd/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/install.sh | bash
 # Or with options:
 #   bash install.sh --skill-only
 #   bash install.sh --mcp-only
@@ -8,8 +8,8 @@
 
 set -e
 
-REPO="https://github.com/QuietPizza/lowtech-tdd"
-RAW="https://raw.githubusercontent.com/QuietPizza/lowtech-tdd/main"
+REPO="https://github.com/hionpu/contractfirst"
+RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"
 SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."

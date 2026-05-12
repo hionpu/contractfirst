@@ -15,7 +15,7 @@ Two components:
 One-liner Install
 -----------------
 
-    curl -fsSL https://raw.githubusercontent.com/QuietPizza/lowtech-tdd/main/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/install.sh | bash
 
 Installs both Skill and MCP server, and registers with whatever CLI tools are detected (Claude Code, Codex CLI, Gemini CLI).
 
@@ -35,7 +35,7 @@ Installs both Skill and MCP server, and registers with whatever CLI tools are de
 One-liner Uninstall
 -------------------
 
-    curl -fsSL https://raw.githubusercontent.com/QuietPizza/lowtech-tdd/main/uninstall.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/uninstall.sh | bash
 
 Removes skill files, cleans up CLI config imports, deregisters the MCP server, and uninstalls the Python package. Verify logs (`.lowtech-tdd/`) are removed interactively.
 
@@ -101,7 +101,7 @@ Manual Setup
 
 ### Skill only
 
-    git clone https://github.com/QuietPizza/lowtech-tdd
+    git clone https://github.com/hionpu/contractfirst
     cp -r lowtech-tdd/skill/.claude /path/to/your/project/
     echo "@.claude/SKILL.md" >> /path/to/your/project/CLAUDE.md
 

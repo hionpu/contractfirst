@@ -1,10 +1,10 @@
 # lowtech-tdd-mcp
 
-An MCP server that provides **deterministic, non-bypassable checkpoints** for the [`lowtech-tdd`](https://github.com/) workflow. The `lowtech-tdd` skill is a prompt — when context drifts, the model can ignore it. This server exposes four tools whose outputs are externally verifiable: if the AI claims tests passed, you can re-run the same tool on the same inputs and falsify the claim.
+An MCP server that provides **deterministic, non-bypassable checkpoints** for the [`lowtech-tdd`](https://github.com/hionpu/contractfirst) workflow. The `lowtech-tdd` skill is a prompt — when context drifts, the model can ignore it. This server exposes five tools whose outputs are externally verifiable: if the AI claims tests passed, you can re-run the same tool on the same inputs and falsify the claim.
 
-Scope is deliberately narrow: **four tools only**. File-write guards, contract-change workflows, plan gates, and human-zone tracking live elsewhere (OS permissions, Git, the skill prompt). This server only handles the parts the AI is most likely to fake or skip.
+Scope is deliberately narrow. File-write guards, contract-change workflows, plan gates, and human-zone tracking live elsewhere (OS permissions, Git, the skill prompt). This server only handles the parts the AI is most likely to fake or skip.
 
-## The four tools
+## The five tools
 
 | Tool | Replaces this AI failure mode |
 |------|-------------------------------|
@@ -12,6 +12,9 @@ Scope is deliberately narrow: **four tools only**. File-write guards, contract-c
 | `score_ambiguity` | "The spec is clear enough" — AI grading its own homework |
 | `verify_links` | "Links are complete" — without actually checking files |
 | `analyze_verify_failure` | Patching before understanding root cause |
+| `track_manual_checks` | "Done" reported on ui-heavy work while manual playtest items are still pending |
+
+Every gate decision (proceed/no, patch_allowed, overall, manual-check resolution) appends one JSON line to `<project_root>/.lowtech-tdd/gates.jsonl` for after-the-fact audit.
 
 ## Install
 
@@ -49,25 +52,32 @@ Both clients launch the server over stdio.
 {
   "project_root": "/path/to/repo",
   "scope": "full",
-  "verify_script": "./verify.sh"
+  "verify_script": "./verify.sh",
+  "feature": "minigame-ui"          // optional — consults manual-check ledger
 }
 ```
 
 Runs `./verify.sh full` if the script exists; otherwise falls back to language-detected defaults (`npm run typecheck/test/lint/build` for Node, `mypy . / pytest / ruff check .` for Python). Full logs are written under `<project_root>/.lowtech-tdd/verify-<timestamp>.log`; the truncated tail (last 2000 chars per stream) is returned inline.
+
+When `feature` is provided, the tool reads the manual-check ledger for that feature. If any required manual check is still pending and automatic checks did not fail, `overall` is downgraded to `pending_manual` — a green automatic run cannot be reported as done on ui-heavy / mixed projects.
 
 ### `score_ambiguity`
 
 ```jsonc
 {
   "goal_clarity": 0.9,
-  "constraint_clarity": 0.7,
+  "goal_evidence": "user said: 'show top 10 players by score'",
+  "constraint_clarity": 0.4,
+  "constraint_evidence": "none",
   "success_criteria_clarity": 0.8,
+  "success_evidence": "user said: 'verify by API returning sorted array'",
   "blocking_questions": [],
-  "open_questions": ["Should we cache responses?"]
+  "open_questions": ["Should we cache responses?"],
+  "project_root": "/path/to/repo"   // optional — enables gates.jsonl entry
 }
 ```
 
-Weights are fixed at 0.40 / 0.30 / 0.30. `proceed: true` only when `ambiguity <= 0.20` and `blocking_questions` is empty. The returned `report_markdown` is the verbatim template the skill expects to print.
+Weights are fixed at 0.40 / 0.30 / 0.30. Each clarity score must be paired with a verbatim quote from the user's request (≥ 8 chars), or the literal token `"none"` if the user said nothing about that dimension — `"none"` then forces the score to be ≤ 0.30, so the AI cannot claim high clarity without producing actual evidence. `proceed: true` only when `ambiguity <= 0.20` and `blocking_questions` is empty. The returned `report_markdown` is the verbatim template the skill expects to print, including the evidence quotes.
 
 ### `verify_links`
 
@@ -80,6 +90,8 @@ Weights are fixed at 0.40 / 0.30 / 0.30. `proceed: true` only when `ambiguity <=
 
 Parses each spec's `## Links` section (or `<!-- LINKS -->` block) and verifies that referenced files exist and contain a reciprocal back-link. Reports `missing`, `stale`, and `orphaned` categories. Read-only.
 
+Folder resolution: per-call `link_dirs` argument > `<project_root>/.lowtech-tdd/config.json` (`"link_dirs"` key) > built-in defaults. Monorepos that don't follow `docs/specs` / `docs/invariants` should set the config file once instead of overriding every call.
+
 ### `analyze_verify_failure`
 
 ```jsonc
@@ -91,7 +103,41 @@ Parses each spec's `## Links` section (or `<!-- LINKS -->` block) and verifies t
 }
 ```
 
-Classifies the failure as `contract_sensitive` or `routine`. For `contract_sensitive`, `h4_gate.patch_allowed` is `false` and no fix snippet appears anywhere — the human must approve a fix strategy first. For `routine` (lint, simple typo), `patch_allowed` is `true` and minimal fix options are returned.
+Classification is layered (strongest signal wins):
+
+1. `failed_step == "test"` → always `contract_sensitive`.
+2. Any suspected file in contract dirs (`specs/`, `invariants/`, `interfaces/`, `tests/`) or matching filename conventions (`*.spec.*`, `*_test.*`, `test_*`).
+3. Multi-framework structured failure markers — pytest, unittest, Jest, Vitest, Mocha/Chai, RSpec, Minitest, Go test, Rust assert, NUnit, xUnit, ExUnit, node:assert.
+4. `lint` / `format` steps default to `routine` unless 1–3 say otherwise.
+
+For `contract_sensitive`, `h4_gate.patch_allowed` is `false` and no fix snippet appears anywhere — the human must approve a fix strategy first. For `routine` (lint, simple typo), `patch_allowed` is `true` and minimal fix options are returned. The result includes `classification_signals` so the human can audit why the tool classified the way it did.
+
+### `track_manual_checks`
+
+```jsonc
+// declare
+{
+  "project_root": "/path/to/repo",
+  "feature": "minigame-ui",
+  "op": "declare",
+  "checks": [
+    {"id": "V1", "description": "ProximityPrompt 3x → only one UI", "required": true},
+    {"id": "V2", "description": "close + reopen works"},
+    {"id": "V3", "description": "perf check at 1080p", "required": false}
+  ]
+}
+
+// confirm
+{ "project_root": "...", "feature": "minigame-ui", "op": "confirm", "check_id": "V1", "note": "playtest 3 min" }
+
+// hand off to another party (still counts as resolved)
+{ "project_root": "...", "feature": "minigame-ui", "op": "handoff", "check_id": "V3", "note": "QA ticket #1234" }
+
+// inspect
+{ "project_root": "...", "feature": "minigame-ui", "op": "summary" }
+```
+
+Per-feature ledger persisted at `<project_root>/.lowtech-tdd/manual-checks/<feature>.json`. `run_verify(feature=...)` consults this ledger to gate `overall: pass`. This is the primary verification surface for ui-heavy projects (visual layout, interaction feel, focus order, playtest) — things `verify.sh` cannot check.
 
 ## Run the tests
 
@@ -100,9 +146,12 @@ pip install -e ".[dev]"
 pytest
 ```
 
+47 tests across the five tools, covering happy paths, classifier signals across frameworks, the manual-check interlock, evidence validation, and gate-log emission.
+
 ## Design notes
 
 - **No hidden state.** Every tool call is independent. Pass everything via arguments.
 - **No network.** Everything runs locally against the file system and subprocess.
 - **Errors return structured results** (not exceptions), except for invalid input — those raise `ValueError`.
-- The whole point of this server is to be **the thing the AI cannot lie about**. If a tool's result depended on the AI's own judgment, it would belong in the skill prompt, not here.
+- **Gates that depend on AI-supplied inputs require evidence.** `score_ambiguity` will reject empty or under-length evidence quotes; the literal `"none"` token forces low scores. This is the cheapest mitigation against the AI inflating its own clarity scores to bypass the gate.
+- The whole point of this server is to be **the thing the AI cannot lie about**. If a tool's result depended purely on the AI's own judgment, it would belong in the skill prompt, not here.
