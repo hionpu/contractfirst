@@ -10,6 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .gatelog import append_gate_event
+from .manual_checks import read_summary as _read_manual_summary
+
 STEP_TIMEOUT_SECONDS = 300
 TAIL_LIMIT = 2000
 VALID_SCOPES = ("full", "typecheck", "test", "lint", "build")
@@ -155,6 +158,23 @@ def _overall(steps: list[dict[str, Any]]) -> str:
     return "partial"
 
 
+def _apply_manual_gate(automatic_overall: str, manual: dict[str, Any] | None) -> tuple[str, str | None]:
+    """Combine the automatic verdict with the manual-check ledger.
+
+    Returns (overall, reason). When manual is None or has no required pending,
+    overall is unchanged. When required pending exists and automatic !=fail,
+    overall becomes `pending_manual` to block a green report.
+    """
+    if manual is None:
+        return automatic_overall, None
+    if manual["all_required_resolved"]:
+        return automatic_overall, None
+    if automatic_overall == "fail":
+        return "fail", None
+    pending = ", ".join(manual["pending_ids"]) or "unspecified"
+    return "pending_manual", f"manual checks pending: {pending}"
+
+
 def _write_log(log_path: Path, scope: str, steps: list[dict[str, Any]], full_outputs: list[tuple[str, str, str]]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"# lowtech-tdd verify log", f"# scope: {scope}", f"# timestamp: {datetime.now().isoformat()}", ""]
@@ -173,6 +193,7 @@ def run_verify(
     project_root: str,
     scope: str = "full",
     verify_script: str = "./verify.sh",
+    feature: str | None = None,
 ) -> dict[str, Any]:
     if scope not in VALID_SCOPES:
         raise ValueError(f"scope must be one of {VALID_SCOPES}, got {scope!r}")
@@ -182,8 +203,6 @@ def run_verify(
 
     script = (root / verify_script).resolve()
     if script.is_file():
-        # capture full outputs by re-running? No — we already captured. Re-run is expensive.
-        # Instead, we capture full outputs at exec time.
         full_outputs: list[tuple[str, str, str]] = []
         steps = _run_verify_script(script, scope, root)
         for s in steps:
@@ -206,11 +225,33 @@ def run_verify(
     if failed:
         summary += f", {len(failed)} failed ({', '.join(failed)})"
 
-    return {
-        "overall": _overall(steps),
+    automatic_overall = _overall(steps)
+    manual_summary = _read_manual_summary(root, feature) if feature else None
+    overall, manual_reason = _apply_manual_gate(automatic_overall, manual_summary)
+    if manual_reason:
+        summary += f"; {manual_reason}"
+
+    result: dict[str, Any] = {
+        "overall": overall,
+        "automatic_overall": automatic_overall,
         "scope_executed": scope,
         "steps": steps,
         "summary": summary,
         "failed_step_names": failed,
         "log_path": log_path_str,
+        "feature": feature,
+        "manual_checks": manual_summary,
     }
+    append_gate_event(
+        root,
+        "run_verify",
+        {
+            "scope": scope,
+            "feature": feature,
+            "overall": overall,
+            "automatic_overall": automatic_overall,
+            "failed_step_names": failed,
+            "manual_pending_ids": (manual_summary or {}).get("pending_ids", []),
+        },
+    )
+    return result

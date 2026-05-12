@@ -25,6 +25,18 @@ To prevent the human from becoming a mere "approval button" and losing debugging
 - **Rule H3 (Explain Before Merge):** Before concluding a Medium+ feature, ask the human to briefly explain the root cause of any complex debugging fix or the core logic of the AI's implementation.
 - **Rule H4 (Debugging Split):** On *contract-sensitive* verify failures (invariant / interface / test / spec related), the AI provides *root cause analysis only*. Do not write the patch until the human understands the cause and approves the fix strategy. Routine failures (typos, lint, trivial type errors) are exempt — fix and report.
 
+## Project Type (session-level, one-time)
+
+Look in the loaded agent-instructions file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) for `<!-- lowtech-tdd: project_type=X -->` where `X` ∈ `{logic-heavy, ui-heavy, mixed}`. If present, use it silently. If absent, follow the detection + persistence protocol in `references/project-types.md` (one-time cost per project).
+
+| Type | Examples | Verify Gate emphasis |
+|------|----------|----------------------|
+| **logic-heavy** | backend, library, CLI, parser, data pipeline | Automatic checks dominate; manual is rare. |
+| **ui-heavy** | WPF / Qt / Avalonia desktop, Unity / Roblox / Godot game content, mobile UI | Manual checklist is **primary** — visual, interaction, focus, animation cannot be automated. Use `track_manual_checks`. |
+| **mixed** | full-stack web, game with networked backend, desktop app with rich domain layer | Track automatic and manual checks separately; both block "done". |
+
+Project Type adjusts: Verify Gate weighting, which invariant categories dominate, and whether AC splits into logic-AC vs UX-AC (mixed / ui-heavy: yes).
+
 ## Scale Triage (Risk & Boundary Based)
 
 Do not measure scale by time. Measure by risk:
@@ -68,7 +80,7 @@ Evaluate the request against the clarity rubric below. Ask targeted questions fo
 
 ### Ambiguity Scoring (Medium / Large)
 
-Score each dimension from 0.0 to 1.0:
+Score each dimension from 0.0 to 1.0. **Each score must be paired with a verbatim quote from the user's request** (≥ 8 chars), or the literal token `none` if the user said nothing about that dimension. The `score_ambiguity` MCP tool rejects empty / under-length evidence and forces `none`-evidence scores to be ≤ 0.30 — you cannot claim high clarity without producing actual evidence.
 
 | Dimension | Weight |
 |-----------|--------|
@@ -82,26 +94,30 @@ Ambiguity = 1 − Σ(score × weight)
 
 Rules:
 - Proceed only when **Ambiguity ≤ 0.20** AND **Blocking ambiguity count = 0**
-- Always print the report below before proceeding
+- Always call `score_ambiguity` and print its `report_markdown` verbatim before proceeding
+- Pass `project_root` to `score_ambiguity` so the gate decision is appended to `.lowtech-tdd/gates.jsonl`
 - Boundary/risk dimensions are covered separately by Scale Triage Q0–Q3 — do not double-count
 
-**Required output template (fixed format):**
+**Required output template (fixed format — produced by `score_ambiguity.report_markdown`):**
 ```
 Ambiguity Report
 - Goal clarity: X × 0.40 = Y
+  evidence: <quote or "none">
 - Constraint clarity: X × 0.30 = Y
+  evidence: <quote or "none">
 - Success criteria clarity: X × 0.30 = Y
+  evidence: <quote or "none">
 - Total clarity: Z
 - Ambiguity (1 - clarity): A
 - Blocking questions: N
-- Open questions:
-  - (list or "none")
-- Proceed: YES / NO
+- Open questions: M
+- Proceed: YES / NO (threshold 0.20, blocking must be 0)
 ```
 
 ## The Workflow
 
 ```text
+[Step 0] Project Type           ← Once per project (infer + confirm)
 [Step 1] Vertical Slicing       ← Before Scale Triage, if feature too broad for one contract
 [Step 2] Scale Triage           ← Always (per slice)
 [Step 3] Clarification Gate     ← Always (Tripwire for Small, Full+score for Medium+)
@@ -208,6 +224,14 @@ Done means:
 One failed check = not done.
 One unconfirmed required manual check = not done.
 
+**How to enforce this with MCP tools:**
+
+1. For any feature with manual verification items (always, for ui-heavy / mixed), `track_manual_checks(op="declare", checks=[...])` at the start of implementation.
+2. Call `run_verify(feature="<slug>")` — when `feature` is set, `run_verify` consults the ledger and returns `overall: pending_manual` whenever required manual checks remain pending, even if `automatic_overall: pass`. A green automatic run cannot be reported as done while items are pending.
+3. As the human confirms each item, the AI calls `track_manual_checks(op="confirm", check_id=...)` to record it. Use `op="handoff"` (with a `note`) when the check is explicitly handed off to another party — this also counts as resolved.
+
+For **ui-heavy** projects, the manual-checklist clause is not a backstop — it is the **primary** verification mechanism for the visual / interaction layer. A `verify.sh` pass without a confirmed manual checklist is **not done**. See `references/project-types.md` for the full per-type breakdown.
+
 ## Contract Change Protocol
 
 A contract change is allowed only when:
@@ -239,6 +263,8 @@ When verification fails:
 - ❌ Patching over an invariant violation instead of fixing root cause
 - ❌ Silently updating link blocks or contract artifacts
 - ❌ Proceeding past the Clarification Gate without printing the Ambiguity Report (Medium+)
+- ❌ Inflating ambiguity scores without verbatim evidence quotes (the `score_ambiguity` tool will reject this)
+- ❌ Reporting a feature as done while `run_verify` returns `overall: pending_manual` (ui-heavy / mixed)
 - ❌ Writing a contract-sensitive fix patch before human approves the root cause (Rule H4)
 
 ## Response Format
@@ -261,3 +287,5 @@ Load only when needed for the relevant step:
 - `references/platforms.md` — platform tool mapping (Roblox / Unity / Elixir / TS / Python)
 - `references/test-onboarding.md` — building test infra from zero
 - `references/links.md` — Spec ↔ Invariant ↔ Interface ↔ Test link management
+- `references/project-types.md` — per-project-type Verify Gate adjustments (logic-heavy / ui-heavy / mixed)
+- `references/architecture-patterns.md` — MVC / MVVM / ECS / Flux / Hexagonal invariant templates

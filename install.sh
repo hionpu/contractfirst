@@ -56,7 +56,7 @@ install_skill() {
 
     fetch "$RAW/skill/SKILL.md" > "$TARGET/.claude/SKILL.md"
 
-    for ref in slicing spec-template platforms test-onboarding links; do
+    for ref in slicing spec-template platforms test-onboarding links project-types architecture-patterns; do
         fetch "$RAW/skill/references/$ref.md" > "$TARGET/.claude/references/$ref.md"
     done
 

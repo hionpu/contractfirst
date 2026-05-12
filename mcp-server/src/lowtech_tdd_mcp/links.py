@@ -1,7 +1,14 @@
-"""verify_links: cross-reference checker for spec/invariant/interface/test files."""
+"""verify_links: cross-reference checker for spec/invariant/interface/test files.
+
+Resolution order for `link_dirs`:
+    1. Per-call `link_dirs` argument (highest priority).
+    2. `<project_root>/.lowtech-tdd/config.json` -> "link_dirs".
+    3. Built-in defaults.
+"""
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -12,6 +19,21 @@ DEFAULT_LINK_DIRS = {
     "interfaces": "src/**/interfaces",
     "tests": "tests",
 }
+CONFIG_RELPATH = ".lowtech-tdd/config.json"
+
+
+def _load_config_link_dirs(root: Path) -> dict[str, str]:
+    cfg = root / CONFIG_RELPATH
+    if not cfg.is_file():
+        return {}
+    try:
+        data = json.loads(cfg.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    raw = data.get("link_dirs") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if isinstance(k, str) and isinstance(v, str)}
 
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 LINKS_HEADING_RE = re.compile(r"^##+\s+Links\s*$", re.IGNORECASE | re.MULTILINE)
@@ -154,7 +176,8 @@ def verify_links(
     link_dirs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
-    dirs = {**DEFAULT_LINK_DIRS, **(link_dirs or {})}
+    config_dirs = _load_config_link_dirs(root)
+    dirs = {**DEFAULT_LINK_DIRS, **config_dirs, **(link_dirs or {})}
     specs_dir = root / dirs["specs"]
 
     if not specs_dir.is_dir():

@@ -132,6 +132,47 @@ def test_bare_links_self_reference_skipped(tmp_path: Path):
     assert result["stale"] == []
 
 
+def test_config_json_overrides_default_link_dirs(tmp_path: Path):
+    """`.lowtech-tdd/config.json` link_dirs override the built-in defaults."""
+    (tmp_path / "design").mkdir()
+    (tmp_path / "design" / "specs").mkdir()
+    (tmp_path / "design" / "invariants").mkdir()
+    (tmp_path / ".lowtech-tdd").mkdir()
+    (tmp_path / ".lowtech-tdd" / "config.json").write_text(
+        '{"link_dirs": {"specs": "design/specs", "invariants": "design/invariants"}}',
+        encoding="utf-8",
+    )
+    spec = tmp_path / "design" / "specs" / "checkout.md"
+    inv = tmp_path / "design" / "invariants" / "payment.md"
+    spec.write_text(
+        "## Links\n- [payment](../invariants/payment.md)\n", encoding="utf-8"
+    )
+    inv.write_text(
+        "# Payment\n[back](../specs/checkout.md)\n", encoding="utf-8"
+    )
+    result = verify_links(project_root=str(tmp_path), feature="checkout")
+    assert result["status"] == "complete"
+    assert result["checked_files"] == 1
+
+
+def test_per_call_link_dirs_outrank_config(tmp_path: Path):
+    """An explicit link_dirs arg overrides config.json."""
+    (tmp_path / ".lowtech-tdd").mkdir()
+    (tmp_path / ".lowtech-tdd" / "config.json").write_text(
+        '{"link_dirs": {"specs": "wrong-path"}}', encoding="utf-8"
+    )
+    (tmp_path / "docs" / "specs").mkdir(parents=True)
+    spec = tmp_path / "docs" / "specs" / "x.md"
+    spec.write_text("# x\n", encoding="utf-8")
+    result = verify_links(
+        project_root=str(tmp_path),
+        feature="x",
+        link_dirs={"specs": "docs/specs"},
+    )
+    # spec exists at docs/specs/x.md and was found → not "not_configured"
+    assert result["status"] != "not_configured"
+
+
 def test_bare_links_multiple_targets_per_line(tmp_path: Path):
     """A single category line can list multiple comma-separated markdown links."""
     _scaffold(tmp_path)

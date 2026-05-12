@@ -1,4 +1,20 @@
-"""analyze_verify_failure: structured root-cause hypotheses without proposing patches."""
+"""analyze_verify_failure: structured root-cause hypotheses without proposing patches.
+
+Classification (contract_sensitive vs routine) drives the H4 gate in
+SKILL.md: contract_sensitive failures set patch_allowed=False, meaning the
+AI must surface the root cause and wait for the human to approve a fix
+strategy before writing any patch.
+
+Detection is layered, strongest to weakest:
+  1. Step-based: failed_step == "test" → always contract_sensitive.
+  2. Path-based: any suspected file in contract dirs/conventions
+     (specs/, invariants/, interfaces/, tests/, *.spec.*, *_test.*, test_*).
+  3. Framework-aware exception detection: structured patterns from pytest,
+     unittest, Jest/Vitest, Mocha/Chai, RSpec, Go test, Rust assert,
+     NUnit/xUnit. These are class/marker patterns, NOT keyword guesses.
+  4. Routine steps: lint, format → routine unless paths/exception say otherwise.
+  5. Fallback: natural-language keyword scan (weakest signal).
+"""
 
 from __future__ import annotations
 
@@ -6,32 +22,75 @@ import re
 from pathlib import Path
 from typing import Any
 
-CONTRACT_KEYWORDS = (
-    "invariant",
-    "interface",
-    "protocol",
-    "contract",
-    "spec",
-    "assertion",
-    "assert",
-    "expected",
-    "got",
-    "should",
-)
+from .gatelog import append_gate_event
 
 ROUTINE_STEPS = {"lint", "format"}
 ALWAYS_CONTRACT_STEPS = {"test"}
 
+CONTRACT_PATH_HINTS = (
+    "docs/specs/",
+    "docs/invariants/",
+    "invariants/",
+    "interfaces/",
+    "specs/",
+    "/tests/",
+    "tests/",
+    "/test/",
+)
+CONTRACT_FILENAME_RE = re.compile(
+    r"(?:^|/)(?:test_[^/]+|[^/]+_test\.[a-z]+|[^/]+\.(?:spec|test)\.[a-z]+)$",
+    re.IGNORECASE,
+)
+
+# Multi-framework structured failure markers. These are deliberately specific
+# (class names, framework prefixes) rather than free-text keywords so they
+# do not fire on incidental words like "should" or "expected" in stdout.
+STRUCTURED_FAILURE_PATTERNS = (
+    # Python (pytest, unittest)
+    re.compile(r"\bAssertionError\b"),
+    re.compile(r"^E\s+AssertionError\b", re.MULTILINE),
+    re.compile(r"^E\s+assert\b", re.MULTILINE),
+    re.compile(r"\bFAILED\s+\S+::\S+"),               # pytest summary
+    # JS/TS (Jest, Vitest, Mocha, Chai)
+    re.compile(r"\bexpect\([^)]*\)\.(?:to|not|toBe|toEqual|toMatch)"),
+    re.compile(r"^\s*●\s+\S+", re.MULTILINE),         # Jest failure header
+    re.compile(r"^\s*FAIL\s+\S+\.(?:spec|test)\.", re.MULTILINE),
+    re.compile(r"^\s*✗\s+", re.MULTILINE),            # Vitest/Mocha failure mark
+    re.compile(r"AssertionError\s*\[ERR_ASSERTION\]"),  # node:assert
+    # Ruby (RSpec, Minitest)
+    re.compile(r"^Failure/Error:", re.MULTILINE),
+    re.compile(r"\bRSpec::Expectations::ExpectationNotMetError\b"),
+    re.compile(r"\bMinitest::Assertion\b"),
+    # Go
+    re.compile(r"^---\s+FAIL:\s+\S+", re.MULTILINE),
+    re.compile(r"^\s*panic:\s+", re.MULTILINE),
+    # Rust
+    re.compile(r"assertion (?:failed|`[^`]+` failed)"),
+    re.compile(r"thread '\S+' panicked at"),
+    # .NET (xUnit, NUnit)
+    re.compile(r"\bXunit\.Sdk\.\w*Exception\b"),
+    re.compile(r"\bNUnit\.Framework\.AssertionException\b"),
+    re.compile(r"^\s*Expected:\s+.*\n\s*But was:", re.MULTILINE),
+    # Elixir (ExUnit)
+    re.compile(r"^\s*\d+\)\s+test\s+", re.MULTILINE),
+    re.compile(r"\bAssertion with == failed\b"),
+    # Type/interface drift signals (treated as contract-sensitive when surfaced
+    # from any framework that prints them)
+    re.compile(r"\b(?:TypeError|AttributeError|NameError)\b"),
+    re.compile(r"\b(?:ImportError|ModuleNotFoundError)\b"),
+    # Explicit invariant tag
+    re.compile(r"\bINV-\d+\b"),
+)
+
+# Generic error-line extraction. The classifier no longer leans on this for
+# contract-sensitivity; it is only used to surface evidence to the human.
 ERROR_LINE_RE = re.compile(
     r"^(.*(?:error|fail|traceback|assertionerror|exception|warning|\b[A-Z]\d{3,4}\b).*)$",
     re.IGNORECASE | re.MULTILINE,
 )
-
-# Common file-path-with-line patterns: foo/bar.py:42, foo/bar.ts(10,5), foo/bar.js:10:5
 FILE_REF_RE = re.compile(
-    r"([A-Za-z_][\w./\\-]*\.(?:py|ts|tsx|js|jsx|go|rs|java|rb|md))[:(]\s*(\d+)"
+    r"([A-Za-z_][\w./\\-]*\.(?:py|ts|tsx|js|jsx|go|rs|java|rb|cs|ex|exs|lua|luau|md))[:(]\s*(\d+)"
 )
-
 INVARIANT_TAG_RE = re.compile(r"\b(INV-\d+)\b")
 
 
@@ -60,8 +119,11 @@ def _rank_error_line(line: str) -> int:
     score = 0
     if any(
         cls in line
-        for cls in ("AssertionError", "TypeError", "AttributeError", "ValueError",
-                    "ImportError", "ModuleNotFoundError", "RuntimeError", "Exception")
+        for cls in (
+            "AssertionError", "TypeError", "AttributeError", "ValueError",
+            "ImportError", "ModuleNotFoundError", "RuntimeError", "Exception",
+            "RSpec::Expectations", "Xunit.Sdk", "NUnit.Framework",
+        )
     ):
         score += 100
     if "error:" in low or ": error" in low:
@@ -104,30 +166,55 @@ def _extract_suspected_files(log: str, project_root: Path, limit: int = 8) -> li
         rel = m.group(1).replace("\\", "/")
         if rel in seen:
             continue
-        candidate = (project_root / rel).resolve()
-        if candidate.exists():
-            seen.add(rel)
-            matches.append(rel)
-        else:
-            if rel not in seen:
-                seen.add(rel)
-                matches.append(rel)
+        seen.add(rel)
+        matches.append(rel)
         if len(matches) >= limit:
             break
     return matches
 
 
-def _is_contract_sensitive(failed_step: str, log: str, suspected_files: list[str]) -> bool:
+def _path_signal_contract(suspected_files: list[str]) -> bool:
+    for f in suspected_files:
+        norm = "/" + f.replace("\\", "/").lstrip("/")
+        if any(h in norm for h in CONTRACT_PATH_HINTS):
+            return True
+        if CONTRACT_FILENAME_RE.search(norm):
+            return True
+    return False
+
+
+def _structured_signal_contract(log: str) -> tuple[bool, str | None]:
+    for pat in STRUCTURED_FAILURE_PATTERNS:
+        m = pat.search(log)
+        if m:
+            return True, pat.pattern
+    return False, None
+
+
+def _classify(failed_step: str, log: str, suspected_files: list[str]) -> tuple[str, list[str]]:
+    """Return (category, signals). Signals are why we classified that way."""
     step = failed_step.lower()
+    signals: list[str] = []
+
     if step in ALWAYS_CONTRACT_STEPS:
-        return True
+        signals.append(f"step:{step}")
+        return "contract_sensitive", signals
+
+    if _path_signal_contract(suspected_files):
+        signals.append("path:contract-dir")
+        return "contract_sensitive", signals
+
+    matched, pattern = _structured_signal_contract(log)
+    if matched:
+        signals.append(f"structured:{pattern}")
+        return "contract_sensitive", signals
+
     if step in ROUTINE_STEPS:
-        return False
-    low = log.lower()
-    if any(kw in low for kw in CONTRACT_KEYWORDS):
-        return True
-    contract_path_hints = ("invariants/", "interfaces/", "specs/", "/tests/", "test_")
-    return any(any(h in f for h in contract_path_hints) for f in suspected_files)
+        signals.append(f"step:{step}")
+        return "routine", signals
+
+    signals.append("fallback:no-signal")
+    return "routine", signals
 
 
 def _find_violated_invariant(log: str, contract_paths: list[str] | None, root: Path) -> str | None:
@@ -254,11 +341,7 @@ def analyze_verify_failure(
 
     error_lines = _extract_error_lines(log)
     suspected = _extract_suspected_files(log, root)
-    category = (
-        "contract_sensitive"
-        if _is_contract_sensitive(failed_step, log, suspected)
-        else "routine"
-    )
+    category, signals = _classify(failed_step, log, suspected)
     violated = _find_violated_invariant(log, contract_paths, root)
     hyps = _hypotheses(category, failed_step, error_lines, suspected, violated)
     strategies = _fix_strategy_options(category, failed_step, error_lines)
@@ -272,6 +355,7 @@ def analyze_verify_failure(
 
     result: dict[str, Any] = {
         "category": category,
+        "classification_signals": signals,
         "failed_step": failed_step,
         "error_summary": _summarize_errors(error_lines),
         "suspected_files": suspected,
@@ -284,4 +368,16 @@ def analyze_verify_failure(
     }
     if recent_diff:
         result["recent_diff_considered"] = True
+
+    append_gate_event(
+        root,
+        "analyze_verify_failure",
+        {
+            "failed_step": failed_step,
+            "category": category,
+            "signals": signals,
+            "patch_allowed": patch_allowed,
+            "violated_invariant": violated,
+        },
+    )
     return result

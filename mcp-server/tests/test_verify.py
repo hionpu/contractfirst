@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from lowtech_tdd_mcp.manual_checks import track_manual_checks
 from lowtech_tdd_mcp.verify import run_verify
 
 
@@ -26,6 +27,7 @@ def test_happy_path_with_verify_script(tmp_path: Path):
     rel = _write_verify_script(tmp_path, exit_code=0, message="all-good")
     result = run_verify(project_root=str(tmp_path), scope="full", verify_script=rel)
     assert result["overall"] == "pass"
+    assert result["automatic_overall"] == "pass"
     assert result["scope_executed"] == "full"
     assert result["failed_step_names"] == []
     assert len(result["steps"]) == 1
@@ -53,3 +55,85 @@ def test_unknown_project_returns_not_configured(tmp_path: Path):
     result = run_verify(project_root=str(tmp_path), scope="full")
     assert result["overall"] in ("partial", "fail")
     assert all(s["status"] == "not_configured" for s in result["steps"])
+
+
+def test_manual_gate_downgrades_pass_to_pending(tmp_path: Path):
+    """A green automatic run + pending manual check → overall=pending_manual."""
+    rel = _write_verify_script(tmp_path, exit_code=0, message="ok")
+    track_manual_checks(
+        project_root=str(tmp_path),
+        feature="minigame-ui",
+        op="declare",
+        checks=[{"id": "V1", "description": "manual playtest"}],
+    )
+    result = run_verify(
+        project_root=str(tmp_path),
+        scope="full",
+        verify_script=rel,
+        feature="minigame-ui",
+    )
+    assert result["automatic_overall"] == "pass"
+    assert result["overall"] == "pending_manual"
+    assert "V1" in (result["manual_checks"] or {}).get("pending_ids", [])
+    assert "manual checks pending" in result["summary"]
+
+
+def test_manual_gate_clears_after_confirm(tmp_path: Path):
+    rel = _write_verify_script(tmp_path, exit_code=0, message="ok")
+    track_manual_checks(
+        project_root=str(tmp_path),
+        feature="x",
+        op="declare",
+        checks=[{"id": "V1", "description": "play check"}],
+    )
+    track_manual_checks(
+        project_root=str(tmp_path), feature="x", op="confirm", check_id="V1"
+    )
+    result = run_verify(
+        project_root=str(tmp_path),
+        scope="full",
+        verify_script=rel,
+        feature="x",
+    )
+    assert result["overall"] == "pass"
+    assert result["manual_checks"]["all_required_resolved"] is True
+
+
+def test_manual_gate_does_not_mask_real_failure(tmp_path: Path):
+    """If automatic fails, overall stays 'fail' regardless of manual ledger."""
+    rel = _write_verify_script(tmp_path, exit_code=3, message="boom")
+    track_manual_checks(
+        project_root=str(tmp_path),
+        feature="x",
+        op="declare",
+        checks=[{"id": "V1", "description": "play check"}],
+    )
+    result = run_verify(
+        project_root=str(tmp_path),
+        scope="full",
+        verify_script=rel,
+        feature="x",
+    )
+    assert result["overall"] == "fail"
+    assert result["automatic_overall"] == "fail"
+
+
+def test_run_verify_logs_to_gates_jsonl(tmp_path: Path):
+    rel = _write_verify_script(tmp_path, exit_code=0, message="ok")
+    run_verify(project_root=str(tmp_path), scope="full", verify_script=rel)
+    gates = tmp_path / ".lowtech-tdd" / "gates.jsonl"
+    assert gates.is_file()
+    assert "run_verify" in gates.read_text(encoding="utf-8")
+
+
+def test_no_feature_skips_manual_check_consultation(tmp_path: Path):
+    rel = _write_verify_script(tmp_path, exit_code=0, message="ok")
+    track_manual_checks(
+        project_root=str(tmp_path),
+        feature="x",
+        op="declare",
+        checks=[{"id": "V1", "description": "play check"}],
+    )
+    result = run_verify(project_root=str(tmp_path), scope="full", verify_script=rel)
+    assert result["overall"] == "pass"  # no feature given → ledger ignored
+    assert result["manual_checks"] is None

@@ -72,22 +72,27 @@ What Gets Installed
     .claude/
     ├── SKILL.md                  ← loaded at session start
     └── references/
-        ├── slicing.md            ← vertical slice guide
-        ├── spec-template.md      ← spec document template
-        ├── platforms.md          ← Roblox/Unity/Elixir/TS/Python tool mapping
-        ├── test-onboarding.md    ← building test infra from zero
-        └── links.md              ← Spec ↔ Invariant ↔ Interface ↔ Test rules
+        ├── slicing.md                ← vertical slice guide
+        ├── spec-template.md          ← spec document template
+        ├── platforms.md              ← Roblox/Unity/Elixir/TS/Python tool mapping
+        ├── test-onboarding.md        ← building test infra from zero
+        ├── links.md                  ← Spec ↔ Invariant ↔ Interface ↔ Test rules
+        ├── project-types.md          ← logic-heavy / ui-heavy / mixed guidance
+        └── architecture-patterns.md  ← MVC / MVVM / ECS / Flux / Hexagonal invariants
 
 ### MCP Server (`~/.local/share/lowtech-tdd-mcp/`)
 
-Four tools:
+Five tools:
 
 | Tool                     | What it does                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------ |
-| `run_verify`             | Runs `verify.sh` and returns structured results. Eliminates fake pass reports.             |
-| `score_ambiguity`        | Computes ambiguity score (0.0–1.0) from per-dimension scores. Blocks proceeding if > 0.20. |
-| `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity.       |
-| `analyze_verify_failure` | Produces root-cause hypotheses. Blocks patch writing for contract-sensitive failures.      |
+| `run_verify`             | Runs `verify.sh` and returns structured results. With `feature=...`, downgrades a green automatic run to `pending_manual` while manual checks remain. |
+| `score_ambiguity`        | Computes ambiguity score from per-dimension scores **with required verbatim evidence quotes**. Blocks proceeding if > 0.20. |
+| `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.lowtech-tdd/config.json`. |
+| `analyze_verify_failure` | Produces root-cause hypotheses. Multi-framework structured detection (pytest/Jest/Go/RSpec/Rust/.NET). Blocks patch writing for contract-sensitive failures. |
+| `track_manual_checks`    | Per-feature ledger of manual verification items. Consumed by `run_verify` to gate `overall: pass` for ui-heavy / mixed projects. |
+
+All gate decisions append one JSON line to `.lowtech-tdd/gates.jsonl` so the history is auditable.
 
 * * *
 
@@ -183,7 +188,9 @@ Repository Structure
     │       ├── spec-template.md
     │       ├── platforms.md
     │       ├── test-onboarding.md
-    │       └── links.md
+    │       ├── links.md
+    │       ├── project-types.md
+    │       └── architecture-patterns.md
     └── mcp-server/
         ├── pyproject.toml
         ├── README.md
@@ -193,7 +200,9 @@ Repository Structure
                 ├── verify.py
                 ├── ambiguity.py
                 ├── links.py
-                └── failure.py
+                ├── failure.py
+                ├── manual_checks.py
+                └── gatelog.py
 
 * * *
 
