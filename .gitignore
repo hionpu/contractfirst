@@ -1,0 +1,9 @@
+.claude
+AI와 TDD+BDD 하기 - Low Tech Dept V5.md
+
+# Python build / cache artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.lowtech-tdd/

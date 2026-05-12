@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lowtech-tdd-mcp"
+version = "0.1.0"
+description = "MCP server providing deterministic, non-bypassable checkpoints for the lowtech-tdd workflow."
+requires-python = ">=3.11"
+authors = [{ name = "lowtech-tdd" }]
+license = { text = "MIT" }
+readme = "README.md"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+lowtech-tdd-mcp = "lowtech_tdd_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
