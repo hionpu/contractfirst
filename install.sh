@@ -98,6 +98,9 @@ install_skill() {
             echo "Read .claude/SKILL.md and the .claude/references/ directory before any code change." >> "$AGENTS_MD"
         fi
         echo "  ✓ Imported in $AGENTS_MD"
+    else
+        echo "  ℹ Codex CLI not found — to add skill manually, add to AGENTS.md:"
+        echo "    Read .claude/SKILL.md and the .claude/references/ directory before any code change."
     fi
 
     # ── Gemini CLI: GEMINI.md (supports @-import directive)
@@ -132,7 +135,7 @@ install_mcp() {
 
     # Install Python package
     if has uv; then
-        uv pip install -e "$MCP_DIR/mcp-server" --quiet
+        uv pip install -e "$MCP_DIR/mcp-server" --system --quiet
     elif has pip3; then
         pip3 install -e "$MCP_DIR/mcp-server" --quiet --break-system-packages 2>/dev/null \
             || pip3 install -e "$MCP_DIR/mcp-server" --quiet
@@ -173,8 +176,18 @@ EOF
                 echo "  ✓ Already registered with Codex CLI"
             fi
         else
-            echo "  ⚠ Codex config not found at $CODEX_CFG — skipping"
+            echo "  ⚠ Codex config not found at $CODEX_CFG — run manually:"
+            echo "    mkdir -p ~/.codex && cat >> ~/.codex/config.toml << 'TOML'"
+            echo "    [mcp_servers.lowtech-tdd]"
+            echo "    command = \"python\""
+            echo "    args = [\"-m\", \"lowtech_tdd_mcp.server\"]"
+            echo "    TOML"
         fi
+    else
+        echo "  ℹ Codex CLI not found — to register MCP manually, add to ~/.codex/config.toml:"
+        echo "    [mcp_servers.lowtech-tdd]"
+        echo "    command = \"python\""
+        echo "    args = [\"-m\", \"lowtech_tdd_mcp.server\"]"
     fi
 
     # Register with Gemini CLI
