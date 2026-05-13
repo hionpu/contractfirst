@@ -8,7 +8,9 @@ Prevents AI from writing code before the contract is clear. Prevents fake "all t
 Two components:
 
 * **Skill** — behavior instructions loaded by Claude Code / Codex / Gemini CLI at session start
-* **MCP server** — four deterministic verification tools the AI cannot lie about
+* **MCP server** — five deterministic verification tools the AI cannot lie about
+
+> **New here?** Read [`OVERVIEW.md`](./OVERVIEW.md) for what this harness does, how it works, and how it compares to other AI-coding workflows (superpowers, plain CLAUDE.md rules, bare sessions). This README is install + reference.
 
 * * *
 
