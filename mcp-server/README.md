@@ -1,5 +1,7 @@
 # lowtech-tdd-mcp
 
+> Python package name: `lowtech-tdd-mcp`. MCP server registration name (what you pass to `claude mcp add` / config files): `lowtech-tdd`.
+
 An MCP server that provides **deterministic, non-bypassable checkpoints** for the [`lowtech-tdd`](https://github.com/hionpu/contractfirst) workflow. The `lowtech-tdd` skill is a prompt — when context drifts, the model can ignore it. This server exposes five tools whose outputs are externally verifiable: if the AI claims tests passed, you can re-run the same tool on the same inputs and falsify the claim.
 
 Scope is deliberately narrow. File-write guards, contract-change workflows, plan gates, and human-zone tracking live elsewhere (OS permissions, Git, the skill prompt). This server only handles the parts the AI is most likely to fake or skip.
@@ -31,13 +33,13 @@ Requires Python 3.11+.
 **Claude Code**
 
 ```bash
-claude mcp add lowtech-tdd-mcp -- python -m lowtech_tdd_mcp.server
+claude mcp add lowtech-tdd -- python -m lowtech_tdd_mcp.server
 ```
 
 **Codex CLI** (`~/.codex/config.toml`)
 
 ```toml
-[mcp_servers.lowtech-tdd-mcp]
+[mcp_servers.lowtech-tdd]
 command = "python"
 args = ["-m", "lowtech_tdd_mcp.server"]
 ```

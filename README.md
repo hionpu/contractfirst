@@ -8,7 +8,7 @@ Prevents AI from writing code before the contract is clear. Prevents fake "all t
 Two components:
 
 * **Skill** — behavior instructions loaded by Claude Code / Codex / Gemini CLI at session start
-* **MCP server** — five deterministic verification tools the AI cannot lie about
+* **MCP server** — five deterministic verification tools whose outputs are saved on disk and re-runnable, so AI claims about them are checkable
 
 > **New here?** Read [`OVERVIEW.md`](./OVERVIEW.md) for what this harness does, how it works, and how it compares to other AI-coding workflows (superpowers, plain CLAUDE.md rules, bare sessions). This README is install + reference.
 
@@ -89,7 +89,7 @@ Five tools:
 | Tool                     | What it does                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------ |
 | `run_verify`             | Runs `verify.sh` and returns structured results. With `feature=...`, downgrades a green automatic run to `pending_manual` while manual checks remain. |
-| `score_ambiguity`        | Computes ambiguity score from per-dimension scores **with required verbatim evidence quotes**. Blocks proceeding if > 0.20. |
+| `score_ambiguity`        | Computes ambiguity score from per-dimension scores **with required verbatim evidence quotes**. Returns `proceed: false` if > 0.20. |
 | `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.lowtech-tdd/config.json`. |
 | `analyze_verify_failure` | Produces root-cause hypotheses. Multi-framework structured detection (pytest/Jest/Go/RSpec/Rust/.NET). Blocks patch writing for contract-sensitive failures. |
 | `track_manual_checks`    | Per-feature ledger of manual verification items. Consumed by `run_verify` to gate `overall: pass` for ui-heavy / mixed projects. |
@@ -127,8 +127,11 @@ Manual Setup
 After Install
 -------------
 
-    # Lock contract files (OS-level enforcement)
+    # Lock contract files (OS-level enforcement — POSIX / WSL / macOS / Linux)
     chmod 444 docs/specs/*.md docs/invariants/*.md
+    
+    # Windows-native equivalent (PowerShell): use the read-only attribute,
+    # or NTFS ACLs (`icacls`) for stronger enforcement. See OVERVIEW.md.
     
     # Add a verify.sh to your project root
     cat > verify.sh << 'EOF'

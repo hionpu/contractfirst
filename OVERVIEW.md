@@ -4,6 +4,28 @@
 
 * * *
 
+## At a glance
+
+This harness adds three things to your project:
+
+1. **A skill prompt** (`.claude/SKILL.md` + references) — instructions the AI loads at session start that tell it how to work: scale triage, clarification gate, contract artefacts, verify gate.
+2. **An MCP server** (5 tools) — a separate process the AI calls for verification, ambiguity scoring, link checks, failure classification, and manual-check tracking. The tools return structured verdicts (e.g. `proceed: false`, `patch_allowed: false`) that the AI is supposed to honour.
+3. **Optional filesystem locks** on contract files (`chmod 444` on POSIX; ACLs on Windows) — the only layer that physically prevents writes.
+
+You install with one curl line. The AI does the rest, calling the MCP tools when the workflow says to. A human owns the contract files. Verification logs and gate decisions land in `.lowtech-tdd/` under your project root.
+
+## A note on what "enforcement" means here
+
+Three different strengths in this document:
+
+- **Hard enforcement** (only on filesystem-locked contract files): the OS refuses the write. Nothing the AI does can bypass it.
+- **Structured verdicts** (what the MCP tools return): tools return e.g. `proceed: false` or `patch_allowed: false` with reasons. The AI is *supposed* to honour the verdict — and a compliant agent will — but the MCP layer cannot physically stop a non-compliant agent from ignoring the result and proceeding anyway. The win is that the AI's claim is now checkable: the tool output is on disk, the agent's behaviour can be audited against it.
+- **Skill instructions** (prose in `SKILL.md`): rules the AI is told to follow. Same compliance assumption as any other AI-workflow framework.
+
+The harness's bet is that **shifting decisions from "AI's private judgement" to "structured tool output the human can read"** is the highest-leverage move available short of running the AI in a fully sandboxed agent loop. The MCP tools are not magic; they are the cheapest way to make the AI's claims falsifiable.
+
+* * *
+
 ## The problem
 
 AI coding assistants are willing but not reliable. The same failure modes recur across models, vendors, and toolchains:
@@ -31,13 +53,13 @@ Every step of an AI coding session falls into one of two categories.
 
 The harness uses three layers, one for each category:
 
-| Layer | What it covers | Mechanism |
-|---|---|---|
-| **Skill** (markdown loaded at session start) | Prose-constrained behaviour: scale triage, vertical slicing, response format, anti-patterns, project-type detection, invariant categorization | The model reads it as part of system context |
-| **MCP server** (5 tools, separate process) | Structurally-cheatable decisions: verification results, ambiguity scoring, link integrity, failure classification, manual-check ledger | The tool returns structured data; the AI's claim about the result is checkable against the tool's actual output |
-| **OS** (`chmod 444`) | Write-protection on contract files (`docs/specs/`, `docs/invariants/`) | Filesystem refuses the write regardless of what the AI tries |
+| Layer | What it covers | Mechanism | Strength |
+|---|---|---|---|
+| **Skill** (markdown loaded at session start) | Prose-constrained behaviour: scale triage, vertical slicing, response format, anti-patterns, project-type detection, invariant categorization | The model reads it as part of system context | Compliance assumption |
+| **MCP server** (5 tools, separate process) | Structurally-cheatable decisions: verification results, ambiguity scoring, link integrity, failure classification, manual-check ledger | The tool returns structured verdicts; the AI's claim about the result is now checkable against the tool's actual output (saved on disk under `.lowtech-tdd/`) | Auditable; compliance still assumed at the API boundary |
+| **OS** (`chmod 444` on POSIX, ACLs on Windows) | Write-protection on contract files (`docs/specs/`, `docs/invariants/`) | Filesystem refuses the write regardless of what the AI tries | Hard enforcement |
 
-The first layer is what every framework does. The second and third are what make this harness different.
+The first layer is what every framework does. The second moves decisions from "AI's private judgement" to "tool output anyone can re-run." The third is the only layer that physically blocks.
 
 * * *
 
@@ -45,7 +67,7 @@ The first layer is what every framework does. The second and third are what make
 
 ### The skill (`skill/SKILL.md` + `references/`)
 
-Loaded at session start via `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`. Concretely encodes:
+Loaded at session start via `CLAUDE.md` (Claude Code, `@`-import) / `GEMINI.md` (Gemini CLI, `@`-import) / `AGENTS.md` (Codex CLI — plain-text directive only; Codex does not implement an `@`-import, so the installer writes a literal instruction telling the Codex agent to read `.claude/SKILL.md` and the `references/` directory before any code change). Concretely encodes:
 
 - **Project type triage.** One-time detection (logic-heavy / ui-heavy / mixed), cached as a single line `<!-- lowtech-tdd: project_type=X -->` in the agent-instructions file. Zero cost on subsequent sessions.
 - **Scale triage (Q0–Q3).** Four questions — touches shared interface, persists state, crosses trust boundary, 3+ concerns collaborating — produce Micro / Small / Medium / Large. Required artifacts scale with risk: a typo fix doesn't need a spec.
@@ -58,25 +80,35 @@ Loaded at session start via `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`. Concretely 
 
 ### The MCP server (5 tools)
 
-| Tool | What it does | Failure mode it removes |
+Each tool returns a structured verdict. A compliant agent honours the verdict; in all cases the verdict (and the inputs that produced it) are written to disk so the human can re-run or audit.
+
+| Tool | What it does | Failure mode it makes auditable |
 |---|---|---|
-| `run_verify` | Subprocess-execs `verify.sh` (or language defaults: npm / pytest / mypy / ruff). Returns exit codes, durations, per-step status, log path. With `feature=...`, consults the manual-check ledger and downgrades a green automatic run to `overall: pending_manual` while required items remain. | "All tests passed" with no run, or with manual checks skipped. |
-| `score_ambiguity` | Computes ambiguity = 1 − Σ(score × weight) with fixed weights 0.40 / 0.30 / 0.30. Each per-dimension score must be accompanied by a verbatim quote from the user's request (≥ 8 chars), or the literal token `none` which forces the score to ≤ 0.30. Returns `proceed: bool`. | "The spec is clear enough" without evidence. The AI can't claim high clarity without producing a quote that the human can read and judge. |
+| `run_verify` | Subprocess-execs `verify.sh` (or language defaults: npm / pytest / mypy / ruff). Returns exit codes, durations, per-step status, and a log path under `.lowtech-tdd/verify-<timestamp>.log`. With `feature=...`, consults the manual-check ledger and downgrades a green automatic run to `overall: pending_manual` while required items remain. | "All tests passed" with no run, or with manual checks skipped — now the log file either exists or it doesn't. |
+| `score_ambiguity` | Computes ambiguity = 1 − Σ(score × weight) with fixed weights 0.40 / 0.30 / 0.30. Each per-dimension score must be accompanied by a verbatim quote from the user's request (≥ 8 chars), or the literal token `none` which forces the score to ≤ 0.30. Returns `proceed: bool` plus the report markdown the skill expects to print. | "The spec is clear enough" without evidence — the AI can't claim high clarity without producing a quote that the human can read and judge. |
 | `verify_links` | Parses each spec's `## Links` section, resolves targets on disk, checks reciprocal back-links. Reports `missing` / `stale` / `orphaned`. Read-only. Folder layout configurable via `.lowtech-tdd/config.json`. | Cross-references rot silently when files move. |
-| `analyze_verify_failure` | Classifies a failure as `contract_sensitive` or `routine` via layered signals: failed step, file paths in contract dirs, multi-framework structured markers (pytest, Jest/Vitest, RSpec, Go test, Rust, NUnit/xUnit, ExUnit). For `contract_sensitive`, returns `patch_allowed: false` — the AI must stop and wait for the human to approve a fix strategy. Returns `classification_signals` so the decision is auditable. | AI patches a failing test instead of asking why it failed. |
+| `analyze_verify_failure` | Classifies a failure as `contract_sensitive` or `routine` via layered signals: failed step, file paths in contract dirs, multi-framework structured markers (pytest, Jest/Vitest, RSpec, Go test, Rust, NUnit/xUnit, ExUnit). For `contract_sensitive`, returns `patch_allowed: false` with a reason. Returns `classification_signals` so the verdict is auditable. | AI patches a failing test instead of surfacing the root cause. With this tool, "patch_allowed: false" is in the response — the user can see it. |
 | `track_manual_checks` | Per-feature ledger of manual verification items (declare / confirm / handoff). `run_verify(feature=...)` consults it. | "Done" reported on ui-heavy work while playtest items are still pending. |
 
-Every gate decision appends one JSON line to `.lowtech-tdd/gates.jsonl`. After a session you can `grep` for "did the H4 gate ever fire on this project, and what did the AI claim was the failure category?"
+Every gate decision appends one JSON line to `.lowtech-tdd/gates.jsonl`. After a session you can `grep` for "did `analyze_verify_failure` ever fire, and did the AI proceed with `patch_allowed: false`?" That's the audit hook the prose-only frameworks don't have.
 
 ### The OS layer
 
-After install, the user runs:
+After install, the user marks contract files read-only. This is the only enforcement that is fully outside the AI's control loop.
+
+**POSIX (macOS, Linux, WSL, Git Bash):**
 
 ```bash
 chmod 444 docs/specs/*.md docs/invariants/*.md
 ```
 
-The filesystem refuses writes to those paths regardless of what the AI attempts. This is the only enforcement that is fully outside the AI's control loop.
+**Windows (native PowerShell):** `chmod` is not a Windows primitive. Use either:
+
+- The read-only attribute (lightweight, fine for solo use): `Set-ItemProperty docs/specs/*.md -Name IsReadOnly -Value $true`
+- Or NTFS ACLs (stronger): `icacls docs\specs\*.md /deny "%USERNAME%:W"`
+- Or run the workflow inside WSL where `chmod 444` works natively.
+
+Note that Windows read-only attribute is advisory in some tools and a process running as Administrator can override it. If you need genuinely tamper-resistant contract files on Windows, ACLs or WSL are the realistic options. The repo currently assumes a POSIX-style environment for the install scripts (`install.sh` is Bash); Windows-native Codex users should treat the OS layer as "best-effort" rather than hard enforcement.
 
 * * *
 
@@ -125,7 +157,7 @@ AI calls track_manual_checks(op="declare", checks=[
 AI calls run_verify(feature="leaderboard-ui"):
   automatic_overall: pass
   overall: pending_manual
-  → AI cannot report "done"; must surface the checklist to the user.
+  → run_verify returns pending_manual; a compliant agent surfaces the checklist instead of reporting done.
 
 User runs the manual checks. For each:
   track_manual_checks(op="confirm", check_id="V1", note="screenshot saved")
@@ -156,11 +188,11 @@ The natural step up: write your rules in markdown and trust the AI to follow.
 
 ### vs. [obra/superpowers](https://github.com/obra/superpowers)
 
-A serious, mature framework — 188K stars, MIT, plugins for seven CLIs. The same problem space, opposite end of the enforcement axis.
+A large, mature framework (high six-figure star count on GitHub as of mid-2026), MIT-licensed, with plugins for seven CLIs. Same problem space, opposite end of the enforcement axis.
 
 | | superpowers | lowtech-tdd / contractfirst |
 |---|---|---|
-| **Enforcement** | Prose + skill activation. RED-GREEN-REFACTOR is "MANDATORY" in italics; no programmatic check verifies it. | Prose + 5 MCP tools that block. AI cannot fake `run_verify`, cannot inflate ambiguity scores without evidence quotes, cannot patch contract-sensitive failures. |
+| **Enforcement** | Prose + skill activation. RED-GREEN-REFACTOR is "MANDATORY" in italics; no programmatic check verifies it. | Prose + 5 MCP tools that return checkable verdicts. AI cannot silently fake `run_verify` (logs are on disk), cannot inflate ambiguity without producing verbatim evidence quotes, cannot get `patch_allowed: true` on a contract-sensitive failure. The AI still has to *follow* the verdict — but the verdict is auditable, which the prose-only approach is not. |
 | **Workflow breadth** | ✅ 14 skills covering brainstorm → plan → TDD → subagent dispatch → review → branch finish. Strong primitives: subagent-driven-development, git worktree integration. | Narrower. One skill + references; no subagent dispatch; no worktree workflow. |
 | **TDD depth** | Comprehensive `test-driven-development` skill with red-flags list, rationalization counters, "delete and restart" rule. | Lighter — TDD is a destination, not a per-feature ceremony. |
 | **Project-type awareness** | Same workflow regardless of project shape. | First-class logic-heavy / ui-heavy / mixed split; `track_manual_checks` exists specifically for ui-heavy. |
@@ -181,7 +213,7 @@ For solo developers in ui-heavy domains (Roblox, Unity, WPF, mobile UI) — the 
 
 For a team in a logic-heavy domain with strong existing test culture, superpowers' subagent dispatching and worktree integration is meaningfully ahead.
 
-The two are not exclusive. A reasonable advanced setup is to **use both**: superpowers for workflow breadth, this harness for hard-gated checkpoints. The MCP layer is independent of any skill framework — the tools work the same whether the skill above them is `lowtech-tdd`, `superpowers`, or hand-rolled.
+The two are not exclusive. A reasonable advanced setup is to **use both**: superpowers for workflow breadth, this harness for tool-verified checkpoints and the audit trail. The MCP layer is independent of any skill framework — the tools work the same whether the skill above them is `lowtech-tdd`, `superpowers`, or hand-rolled.
 
 * * *
 

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "MCP server providing deterministic, non-bypassable checkpoints for the lowtech-tdd workflow."
 requires-python = ">=3.11"
 authors = [{ name = "lowtech-tdd" }]
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 readme = "README.md"
 dependencies = [
     "mcp>=1.0.0",
