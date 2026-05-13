@@ -69,18 +69,20 @@ Removes skill files, cleans up CLI config imports, deregisters the MCP server, a
 What Gets Installed
 -------------------
 
-### Skill (`~/.claude/` or `<project>/.claude/`)
+### Skill (`<project>/.claude/skills/lowtech-tdd/`)
 
     .claude/
-    ├── SKILL.md                  ← loaded at session start
-    └── references/
-        ├── slicing.md                ← vertical slice guide
-        ├── spec-template.md          ← spec document template
-        ├── platforms.md              ← Roblox/Unity/Elixir/TS/Python tool mapping
-        ├── test-onboarding.md        ← building test infra from zero
-        ├── links.md                  ← Spec ↔ Invariant ↔ Interface ↔ Test rules
-        ├── project-types.md          ← logic-heavy / ui-heavy / mixed guidance
-        └── architecture-patterns.md  ← MVC / MVVM / ECS / Flux / Hexagonal invariants
+    └── skills/
+        └── lowtech-tdd/
+            ├── SKILL.md                  ← loaded at session start
+            └── references/
+                ├── slicing.md                ← vertical slice guide
+                ├── spec-template.md          ← spec document template
+                ├── platforms.md              ← Roblox/Unity/Elixir/TS/Python tool mapping
+                ├── test-onboarding.md        ← building test infra from zero
+                ├── links.md                  ← Spec ↔ Invariant ↔ Interface ↔ Test rules
+                ├── project-types.md          ← logic-heavy / ui-heavy / mixed guidance
+                └── architecture-patterns.md  ← MVC / MVVM / ECS / Flux / Hexagonal invariants
 
 ### MCP Server (`~/.local/share/lowtech-tdd-mcp/`)
 
@@ -104,8 +106,9 @@ Manual Setup
 ### Skill only
 
     git clone https://github.com/hionpu/contractfirst
-    cp -r lowtech-tdd/skill/.claude /path/to/your/project/
-    echo "@.claude/SKILL.md" >> /path/to/your/project/CLAUDE.md
+    mkdir -p /path/to/your/project/.claude/skills/lowtech-tdd
+    cp -r skill/SKILL.md skill/references /path/to/your/project/.claude/skills/lowtech-tdd/
+    echo "@.claude/skills/lowtech-tdd/SKILL.md" >> /path/to/your/project/CLAUDE.md
 
 ### MCP server only
 

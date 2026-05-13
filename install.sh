@@ -52,12 +52,15 @@ fetch() {
 # ── Install Skill ──────────────────────────────────────────────
 install_skill() {
     echo "→ Installing skill..."
-    mkdir -p "$TARGET/.claude/references"
 
-    fetch "$RAW/skill/SKILL.md" > "$TARGET/.claude/SKILL.md"
+    # Skill lives in its own subdirectory so it doesn't collide with other skills
+    SKILL_DIR="$TARGET/.claude/skills/lowtech-tdd"
+    mkdir -p "$SKILL_DIR/references"
+
+    fetch "$RAW/skill/SKILL.md" > "$SKILL_DIR/SKILL.md"
 
     for ref in slicing spec-template platforms test-onboarding links project-types architecture-patterns; do
-        fetch "$RAW/skill/references/$ref.md" > "$TARGET/.claude/references/$ref.md"
+        fetch "$RAW/skill/references/$ref.md" > "$SKILL_DIR/references/$ref.md"
     done
 
     # Detect CLAUDE.md / claude.md and append skill import if not already present
@@ -76,11 +79,11 @@ install_skill() {
     if ! grep -q "lowtech-tdd" "$CLAUDE_MD" 2>/dev/null; then
         echo "" >> "$CLAUDE_MD"
         echo "# Low-Tech Dept TDD Harness" >> "$CLAUDE_MD"
-        echo "@.claude/SKILL.md" >> "$CLAUDE_MD"
+        echo "@.claude/skills/lowtech-tdd/SKILL.md" >> "$CLAUDE_MD"
     fi
 
-    echo "  ✓ Skill installed → $TARGET/.claude/SKILL.md"
-    echo "  ✓ References installed → $TARGET/.claude/references/"
+    echo "  ✓ Skill installed → $SKILL_DIR/SKILL.md"
+    echo "  ✓ References installed → $SKILL_DIR/references/"
     echo "  ✓ Imported in $CLAUDE_MD"
 
     # ── Codex CLI: AGENTS.md (no @-import support — write a plain-text directive
@@ -95,12 +98,12 @@ install_skill() {
             echo "" >> "$AGENTS_MD"
             echo "# Low-Tech Dept TDD Harness" >> "$AGENTS_MD"
             echo "This project uses the Low-Tech Dept TDD harness." >> "$AGENTS_MD"
-            echo "Read .claude/SKILL.md and the .claude/references/ directory before any code change." >> "$AGENTS_MD"
+            echo "Read .claude/skills/lowtech-tdd/SKILL.md and the .claude/skills/lowtech-tdd/references/ directory before any code change." >> "$AGENTS_MD"
         fi
         echo "  ✓ Imported in $AGENTS_MD"
     else
         echo "  ℹ Codex CLI not found — to add skill manually, add to AGENTS.md:"
-        echo "    Read .claude/SKILL.md and the .claude/references/ directory before any code change."
+        echo "    Read .claude/skills/lowtech-tdd/SKILL.md and the .claude/skills/lowtech-tdd/references/ directory before any code change."
     fi
 
     # ── Gemini CLI: GEMINI.md (supports @-import directive)
@@ -113,7 +116,7 @@ install_skill() {
         if ! grep -q "lowtech-tdd\|SKILL\.md" "$GEMINI_MD" 2>/dev/null; then
             echo "" >> "$GEMINI_MD"
             echo "# Low-Tech Dept TDD Harness" >> "$GEMINI_MD"
-            echo "@.claude/SKILL.md" >> "$GEMINI_MD"
+            echo "@.claude/skills/lowtech-tdd/SKILL.md" >> "$GEMINI_MD"
         fi
         echo "  ✓ Imported in $GEMINI_MD"
     fi
@@ -200,26 +203,27 @@ EOF
     fi
 
     # Register with Gemini CLI
+    # Use Python's Path.home() instead of shell $HOME to avoid Git Bash path issues on Windows
+    # (Git Bash HOME is /c/Users/PSW but Windows Python needs C:/Users/PSW)
     if has gemini; then
-        GEMINI_CFG="$HOME/.gemini/settings.json"
-        mkdir -p "$(dirname "$GEMINI_CFG")"
-        if [[ ! -f "$GEMINI_CFG" ]]; then
-            echo '{}' > "$GEMINI_CFG"
-        fi
-        if ! grep -q "lowtech-tdd" "$GEMINI_CFG"; then
-            python3 - <<EOF
-import json
-cfg = json.load(open("$GEMINI_CFG"))
-cfg.setdefault("mcpServers", {})["lowtech-tdd"] = {
-    "command": "python",
-    "args": ["-m", "lowtech_tdd_mcp.server"]
-}
-json.dump(cfg, open("$GEMINI_CFG", "w"), indent=2)
-print("  ✓ Registered with Gemini CLI")
-EOF
-        else
-            echo "  ✓ Already registered with Gemini CLI"
-        fi
+        python3 - <<'PYEOF'
+import json, pathlib, sys
+cfg_path = pathlib.Path.home() / ".gemini" / "settings.json"
+cfg_path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+except json.JSONDecodeError:
+    cfg = {}
+if "lowtech-tdd" not in cfg.get("mcpServers", {}):
+    cfg.setdefault("mcpServers", {})["lowtech-tdd"] = {
+        "command": "python",
+        "args": ["-m", "lowtech_tdd_mcp.server"]
+    }
+    cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print("  ✓ Registered with Gemini CLI")
+else:
+    print("  ✓ Already registered with Gemini CLI")
+PYEOF
     fi
 }
 
