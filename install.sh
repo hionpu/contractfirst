@@ -133,17 +133,26 @@ install_mcp() {
         git clone --quiet "$REPO" "$MCP_DIR"
     fi
 
-    # Install Python package
+    # Install Python package — uv first (fast), fall back to pip if uv fails for any reason
+    _pkg_installed=false
     if has uv; then
-        uv pip install -e "$MCP_DIR/mcp-server" --system --quiet
-    elif has pip3; then
-        pip3 install -e "$MCP_DIR/mcp-server" --quiet --break-system-packages 2>/dev/null \
-            || pip3 install -e "$MCP_DIR/mcp-server" --quiet
-    elif has pip; then
-        pip install -e "$MCP_DIR/mcp-server" --quiet
-    else
-        echo "  Error: pip or uv required for MCP server install"
-        exit 1
+        if uv pip install -e "$MCP_DIR/mcp-server" --system --quiet 2>/dev/null; then
+            _pkg_installed=true
+        fi
+    fi
+    if ! $_pkg_installed; then
+        if has pip3; then
+            pip3 install -e "$MCP_DIR/mcp-server" --quiet --break-system-packages 2>/dev/null \
+                || pip3 install -e "$MCP_DIR/mcp-server" --quiet
+        elif has pip; then
+            pip install -e "$MCP_DIR/mcp-server" --quiet
+        elif has python3; then
+            python3 -m pip install -e "$MCP_DIR/mcp-server" --quiet --break-system-packages 2>/dev/null \
+                || python3 -m pip install -e "$MCP_DIR/mcp-server" --quiet
+        else
+            echo "  Error: no pip/uv found — install Python 3.11+ and re-run"
+            exit 1
+        fi
     fi
 
     echo "  ✓ MCP server installed → $MCP_DIR"
