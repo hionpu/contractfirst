@@ -245,9 +245,9 @@ if "contractfirst" not in cfg.get("mcpServers", {}):
         "args": ["-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  ✓ Registered with Gemini CLI (~/.gemini/settings.json)")
+    print("  OK Registered with Gemini CLI (~/.gemini/settings.json)")
 else:
-    print("  ✓ Already registered with Gemini CLI")
+    print("  OK Already registered with Gemini CLI")
 PYEOF
     fi
 
@@ -278,9 +278,9 @@ if isinstance(legacy, dict) and legacy.get("args") == ["-m", "lowtech_tdd_mcp.se
     changed = True
 if changed:
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print(f"  ✓ Registered with Pi MCP adapter ({cfg_path})")
+    print(f"  OK Registered with Pi MCP adapter ({cfg_path})")
 else:
-    print("  ✓ Already registered with Pi MCP adapter")
+    print("  OK Already registered with Pi MCP adapter")
 PYEOF
     fi
 
@@ -300,9 +300,9 @@ if "contractfirst" not in cfg.get("mcp", {}):
         "command": ["python", "-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  ✓ Registered with opencode (~/.config/opencode/opencode.json)")
+    print("  OK Registered with opencode (~/.config/opencode/opencode.json)")
 else:
-    print("  ✓ Already registered with opencode")
+    print("  OK Already registered with opencode")
 PYEOF
     fi
 }

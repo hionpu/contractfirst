@@ -110,9 +110,9 @@ if cfg_path.exists():
     if "contractfirst" in cfg.get("mcpServers", {}):
         cfg["mcpServers"].pop("contractfirst")
         cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-        print("  ✓ Deregistered from Gemini CLI")
+        print("  OK Deregistered from Gemini CLI")
     else:
-        print("  ✓ Not registered with Gemini CLI (skipping)")
+        print("  OK Not registered with Gemini CLI (skipping)")
 PYEOF
     fi
 
@@ -137,9 +137,9 @@ if isinstance(legacy, dict) and legacy.get("args") == ["-m", "contractfirst.serv
     changed = True
 if changed:
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  ✓ Deregistered from Pi MCP adapter")
+    print("  OK Deregistered from Pi MCP adapter")
 else:
-    print("  ✓ Not registered with Pi MCP adapter (skipping)")
+    print("  OK Not registered with Pi MCP adapter (skipping)")
 PYEOF
     fi
 
