@@ -52,6 +52,12 @@ uninstall_skill() {
         echo "  ✓ No skill files found at $SKILL_DIR"
     fi
 
+    PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
+    if [[ -d "$PI_SKILL_DIR" ]] && grep -q "contractfirst" "$PI_SKILL_DIR/SKILL.md" 2>/dev/null; then
+        rm -rf "$PI_SKILL_DIR"
+        echo "  ✓ Removed Pi native skill at $PI_SKILL_DIR"
+    fi
+
     # Remove contractfirst import lines from CLAUDE.md / AGENTS.md / GEMINI.md
     for cfg in "$TARGET/CLAUDE.md" "$TARGET/claude.md" \
                "$TARGET/AGENTS.md" "$TARGET/agents.md" \
@@ -107,6 +113,33 @@ if cfg_path.exists():
         print("  ✓ Deregistered from Gemini CLI")
     else:
         print("  ✓ Not registered with Gemini CLI (skipping)")
+PYEOF
+    fi
+
+    # Deregister from Pi MCP adapter
+    PI_CFG="$HOME/.pi/agent/mcp.json"
+    if [[ -f "$PI_CFG" ]]; then
+        python3 - <<'PYEOF'
+import json, pathlib
+cfg_path = pathlib.Path.home() / ".pi" / "agent" / "mcp.json"
+try:
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+except Exception:
+    cfg = {}
+servers = cfg.get("mcpServers", {})
+changed = False
+if "contractfirst" in servers:
+    servers.pop("contractfirst")
+    changed = True
+legacy = servers.get("lowtech-tdd")
+if isinstance(legacy, dict) and legacy.get("args") == ["-m", "contractfirst.server"]:
+    servers.pop("lowtech-tdd")
+    changed = True
+if changed:
+    cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print("  ✓ Deregistered from Pi MCP adapter")
+else:
+    print("  ✓ Not registered with Pi MCP adapter (skipping)")
 PYEOF
     fi
 

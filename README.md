@@ -7,8 +7,8 @@ Prevents AI from writing code before the contract is clear. Prevents fake "all t
 
 Two components:
 
-* **Skill** — behavior instructions loaded by Claude Code / Codex / Gemini CLI at session start
-* **MCP server** — five deterministic verification tools whose outputs are saved on disk and re-runnable, so AI claims about them are checkable
+* **Skill** — behavior instructions loaded by Claude Code / Codex / Gemini CLI / Pi / opencode at session start
+* **MCP server** — seven deterministic verification tools whose outputs are saved on disk and re-runnable, so AI claims about them are checkable
 
 > **New here?** Read [`OVERVIEW.md`](./OVERVIEW.md) for what this harness does, how it works, and how it compares to other AI-coding workflows (superpowers, plain CLAUDE.md rules, bare sessions). This README is install + reference.
 
@@ -19,7 +19,7 @@ One-liner Install
 
     curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/install.sh | bash
 
-Installs both Skill and MCP server, and registers with whatever CLI tools are detected (Claude Code, Codex CLI, Gemini CLI).
+Installs both Skill and MCP server, and registers with whatever CLI tools are detected (Claude Code, Codex CLI, Gemini CLI, Pi, opencode).
 
 ### Options
 
@@ -44,7 +44,7 @@ Default (no `--cli`): auto-detects installed CLIs from PATH.
 | `claude` | `CLAUDE.md` (`@`-import) | `claude mcp add` (project-scoped) |
 | `codex` | `AGENTS.md` (plain-text directive) | `~/.codex/config.toml` |
 | `gemini` | `GEMINI.md` (`@`-import) | `~/.gemini/settings.json` |
-| `pi` | `AGENTS.md` (plain-text directive) | — (Pi does not support MCP) |
+| `pi` | `~/.pi/agent/skills/lowtech-tdd` + `AGENTS.md` | `~/.pi/agent/mcp.json` (Pi MCP adapter extension) |
 | `opencode` | `AGENTS.md` (plain-text directive) | `~/.config/opencode/opencode.json` |
 
 * * *
@@ -108,7 +108,9 @@ Removes skill files, cleans up CLI config imports, deregisters the MCP server, a
 What Gets Installed
 -------------------
 
-### Skill (`<project>/.claude/skills/contractfirst/`)
+### Skill
+
+Project copy (`<project>/.claude/skills/contractfirst/`):
 
     .claude/
     └── skills/
@@ -122,6 +124,8 @@ What Gets Installed
                 ├── links.md                  ← Spec ↔ Invariant ↔ Interface ↔ Test rules
                 ├── project-types.md          ← logic-heavy / ui-heavy / mixed guidance
                 └── architecture-patterns.md  ← MVC / MVVM / ECS / Flux / Hexagonal invariants
+
+Pi native copy (`--cli pi`): `~/.pi/agent/skills/lowtech-tdd/`. Re-running install overwrites `SKILL.md` and references there, so legacy Pi installs get updated. The Pi copy keeps `name: lowtech-tdd` so it matches its directory and existing `/skill:lowtech-tdd` usage.
 
 ### MCP Server (`~/.local/share/contractfirst/`)
 
@@ -165,6 +169,9 @@ Manual Setup
     
     # Gemini CLI — add to ~/.gemini/settings.json:
     # { "mcpServers": { "contractfirst": { "command": "python", "args": ["-m", "contractfirst.server"] } } }
+    
+    # Pi MCP adapter — add to ~/.pi/agent/mcp.json:
+    # { "mcpServers": { "contractfirst": { "command": "python", "args": ["-m", "contractfirst.server"], "lifecycle": "lazy", "idleTimeout": 10 } } }
 
 * * *
 
@@ -263,7 +270,7 @@ Supported CLI Tools
 | Claude Code | `claude`      | ✅ via `CLAUDE.md` (`@`-import)                 | ✅ via `claude mcp add`          |
 | Codex CLI   | `codex`       | ✅ via `AGENTS.md` (plain-text directive)       | ✅ via `~/.codex/config.toml`    |
 | Gemini CLI  | `gemini`      | ✅ via `GEMINI.md` (`@`-import)                 | ✅ via `~/.gemini/settings.json` |
-| Pi          | `pi`          | ✅ via `AGENTS.md` (plain-text directive)       | ❌ Pi does not support MCP       |
+| Pi          | `pi`          | ✅ via native Pi skill dir + `AGENTS.md`        | ✅ via Pi MCP adapter (`~/.pi/agent/mcp.json`) |
 | opencode    | `opencode`    | ✅ via `AGENTS.md` (plain-text directive)       | ✅ via `~/.config/opencode/opencode.json` |
 
 * * *

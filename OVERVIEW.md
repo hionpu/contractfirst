@@ -9,7 +9,7 @@
 This harness adds three things to your project:
 
 1. **A skill prompt** (`.claude/SKILL.md` + references) — instructions the AI loads at session start that tell it how to work: scale triage, clarification gate, contract artefacts, verify gate.
-2. **An MCP server** (5 tools) — a separate process the AI calls for verification, ambiguity scoring, link checks, failure classification, and manual-check tracking. The tools return structured verdicts (e.g. `proceed: false`, `patch_allowed: false`) that the AI is supposed to honour.
+2. **An MCP server** (7 tools) — a separate process the AI calls for verification, ambiguity scoring, link checks, failure classification, and manual-check tracking. The tools return structured verdicts (e.g. `proceed: false`, `patch_allowed: false`) that the AI is supposed to honour.
 3. **Optional filesystem locks** on contract files (`chmod 444` on POSIX; ACLs on Windows) — the only layer that physically prevents writes.
 
 You install with one curl line. The AI does the rest, calling the MCP tools when the workflow says to. A human owns the contract files. Verification logs and gate decisions land in `.contractfirst/` under your project root.
@@ -56,7 +56,7 @@ The harness uses three layers, one for each category:
 | Layer | What it covers | Mechanism | Strength |
 |---|---|---|---|
 | **Skill** (markdown loaded at session start) | Prose-constrained behaviour: scale triage, vertical slicing, response format, anti-patterns, project-type detection, invariant categorization | The model reads it as part of system context | Compliance assumption |
-| **MCP server** (5 tools, separate process) | Structurally-cheatable decisions: verification results, ambiguity scoring, link integrity, failure classification, manual-check ledger | The tool returns structured verdicts; the AI's claim about the result is now checkable against the tool's actual output (saved on disk under `.contractfirst/`) | Auditable; compliance still assumed at the API boundary |
+| **MCP server** (7 tools, separate process) | Structurally-cheatable decisions: verification results, ambiguity scoring, link integrity, failure classification, manual-check ledger | The tool returns structured verdicts; the AI's claim about the result is now checkable against the tool's actual output (saved on disk under `.contractfirst/`) | Auditable; compliance still assumed at the API boundary |
 | **OS** (`chmod 444` on POSIX, ACLs on Windows) | Write-protection on contract files (`docs/specs/`, `docs/invariants/`) | Filesystem refuses the write regardless of what the AI tries | Hard enforcement |
 
 The first layer is what every framework does. The second moves decisions from "AI's private judgement" to "tool output anyone can re-run." The third is the only layer that physically blocks.
@@ -67,7 +67,7 @@ The first layer is what every framework does. The second moves decisions from "A
 
 ### The skill (`skill/SKILL.md` + `references/`)
 
-Loaded at session start via `CLAUDE.md` (Claude Code, `@`-import) / `GEMINI.md` (Gemini CLI, `@`-import) / `AGENTS.md` (Codex CLI — plain-text directive only; Codex does not implement an `@`-import, so the installer writes a literal instruction telling the Codex agent to read `.claude/SKILL.md` and the `references/` directory before any code change). Concretely encodes:
+Loaded at session start via `CLAUDE.md` (Claude Code, `@`-import) / `GEMINI.md` (Gemini CLI, `@`-import) / `AGENTS.md` (Codex CLI and opencode plain-text directive) / Pi's native skill directory (`~/.pi/agent/skills/lowtech-tdd`, with `name: lowtech-tdd`, plus an `AGENTS.md` project directive). Concretely encodes:
 
 - **Project type triage.** One-time detection (logic-heavy / ui-heavy / mixed), cached as a single line `<!-- contractfirst: project_type=X -->` in the agent-instructions file. Zero cost on subsequent sessions.
 - **Scale triage (Q0–Q3).** Four questions — touches shared interface, persists state, crosses trust boundary, 3+ concerns collaborating — produce Micro / Small / Medium / Large. Required artifacts scale with risk: a typo fix doesn't need a spec.
@@ -78,7 +78,7 @@ Loaded at session start via `CLAUDE.md` (Claude Code, `@`-import) / `GEMINI.md` 
 - **Four human-skill-preservation rules (H1–H4).** What zones are human-owned, when a hand-code quota applies, when the human must explain the root cause, and when the AI must do root-cause-only and wait for approval.
 - **Anti-patterns.** Six concrete failure modes flagged by name.
 
-### The MCP server (5 tools)
+### The MCP server (7 tools)
 
 Each tool returns a structured verdict. A compliant agent honours the verdict; in all cases the verdict (and the inputs that produced it) are written to disk so the human can re-run or audit.
 
@@ -86,6 +86,8 @@ Each tool returns a structured verdict. A compliant agent honours the verdict; i
 |---|---|---|
 | `run_verify` | Subprocess-execs `verify.sh` (or language defaults: npm / pytest / mypy / ruff). Returns exit codes, durations, per-step status, and a log path under `.contractfirst/verify-<timestamp>.log`. With `feature=...`, consults the manual-check ledger and downgrades a green automatic run to `overall: pending_manual` while required items remain. | "All tests passed" with no run, or with manual checks skipped — now the log file either exists or it doesn't. |
 | `score_ambiguity` | Computes ambiguity = 1 − Σ(score × weight) with fixed weights 0.40 / 0.30 / 0.30. Each per-dimension score must be accompanied by a verbatim quote from the user's request (≥ 8 chars), or the literal token `none` which forces the score to ≤ 0.30. Returns `proceed: bool` plus the report markdown the skill expects to print. | "The spec is clear enough" without evidence — the AI can't claim high clarity without producing a quote that the human can read and judge. |
+| `draft_ambiguity_score` | Stages Agent A's ambiguity scores and returns an auditor prompt plus one-time `audit_token` for sub-agent review. | Lets a second pass audit the first pass before the gate is committed. |
+| `commit_ambiguity_audit` | Parses auditor verdict, forces rejected dimensions to 0.0, and returns final `proceed`. | Prevents weak evidence from surviving the ambiguity gate unnoticed. |
 | `verify_links` | Parses each spec's `## Links` section, resolves targets on disk, checks reciprocal back-links. Reports `missing` / `stale` / `orphaned`. Read-only. Folder layout configurable via `.contractfirst/config.json`. | Cross-references rot silently when files move. |
 | `analyze_verify_failure` | Classifies a failure as `contract_sensitive` or `routine` via layered signals: failed step, file paths in contract dirs, multi-framework structured markers (pytest, Jest/Vitest, RSpec, Go test, Rust, NUnit/xUnit, ExUnit). For `contract_sensitive`, returns `patch_allowed: false` with a reason. Returns `classification_signals` so the verdict is auditable. | AI patches a failing test instead of surfacing the root cause. With this tool, "patch_allowed: false" is in the response — the user can see it. |
 | `track_manual_checks` | Per-feature ledger of manual verification items (declare / confirm / handoff). `run_verify(feature=...)` consults it. | "Done" reported on ui-heavy work while playtest items are still pending. |
@@ -199,7 +201,7 @@ A large, mature framework (high six-figure star count on GitHub as of mid-2026),
 | **Contract model** | Design documents, planned tasks. No Invariant/Boundary distinction. | Spec / Invariant / Interface / Test as separate artefacts with categorized invariants (Safety / Consistency / Boundary / Performance) and `chmod 444` on the files. |
 | **Architecture patterns** | Not modeled. | MVC / MVVM / ECS / Flux / Hexagonal → first-class boundary invariants. |
 | **Audit trail** | None. After the session, you cannot tell which gates were hit or skipped. | `.contractfirst/gates.jsonl` records every gate decision. |
-| **CLI reach** | Claude Code, Codex, Factory Droid, Gemini, OpenCode, Cursor, GitHub Copilot CLI. | Claude Code, Codex, Gemini. |
+| **CLI reach** | Claude Code, Codex, Factory Droid, Gemini, OpenCode, Cursor, GitHub Copilot CLI. | Claude Code, Codex, Gemini, Pi (via MCP adapter extension), opencode. |
 | **Maturity** | Established, big community. | New, single developer. |
 
 **The honest read:** superpowers is the most polished version of the "teach the AI a workflow" approach. It's better than this harness at choreographing a full SDLC and packaging that across CLIs. This harness is better at the specific question of *will the AI actually follow the workflow when it's inconvenient* — because the gates that matter are enforced by code, not by prose.

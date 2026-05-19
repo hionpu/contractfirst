@@ -17,6 +17,7 @@ SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."
 CLI_LIST=""   # empty = auto-detect from PATH
+REFS="slicing spec-template platforms test-onboarding links project-types architecture-patterns"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -69,7 +70,7 @@ cli_enabled() {
     fi
 }
 
-# python3 required for MCP server install and Gemini/opencode config edits
+# python3 required for MCP server install and Gemini/Pi/opencode config edits
 if ! has python3 && ! $SKILL_ONLY; then
     echo "Error: python3 is required but not found in PATH"
     echo "Install Python 3.11+ and re-run."
@@ -77,17 +78,39 @@ if ! has python3 && ! $SKILL_ONLY; then
 fi
 
 # ── Install Skill ──────────────────────────────────────────────
+install_skill_files() {
+    local dir="$1"
+    local skill_name="${2:-contractfirst}"
+    mkdir -p "$dir/references"
+    fetch "$RAW/skill/SKILL.md" > "$dir/SKILL.md"
+    if [[ "$skill_name" != "contractfirst" ]]; then
+        python3 - "$dir/SKILL.md" "$skill_name" <<'PYEOF'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+name = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+text = text.replace("name: contractfirst", f"name: {name}", 1)
+path.write_text(text, encoding="utf-8")
+PYEOF
+    fi
+    for ref in $REFS; do
+        fetch "$RAW/skill/references/$ref.md" > "$dir/references/$ref.md"
+    done
+}
+
 install_skill() {
     echo "→ Installing skill files..."
 
     SKILL_DIR="$TARGET/.claude/skills/contractfirst"
-    mkdir -p "$SKILL_DIR/references"
-
-    fetch "$RAW/skill/SKILL.md" > "$SKILL_DIR/SKILL.md"
-    for ref in slicing spec-template platforms test-onboarding links project-types architecture-patterns; do
-        fetch "$RAW/skill/references/$ref.md" > "$SKILL_DIR/references/$ref.md"
-    done
+    install_skill_files "$SKILL_DIR"
     echo "  ✓ Skill files → $SKILL_DIR/"
+
+    # ── Pi native skill store: replace legacy lowtech-tdd skill in the global Pi agent dir.
+    if cli_enabled pi; then
+        PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
+        install_skill_files "$PI_SKILL_DIR" "lowtech-tdd"
+        echo "  ✓ Pi native skill → $PI_SKILL_DIR/"
+    fi
 
     # ── Claude Code: CLAUDE.md with @-import
     if cli_enabled claude; then
@@ -118,7 +141,7 @@ install_skill() {
         cli_enabled opencode && _who="${_who}opencode"
         echo "  ✓ Imported in $_md (${_who% })"
         if cli_enabled pi; then
-            echo "  ℹ Pi: skill loaded via AGENTS.md — Pi does not support MCP"
+            echo "  ℹ Pi: native skill installed; AGENTS.md directive kept for project context"
         fi
     fi
 
@@ -228,9 +251,37 @@ else:
 PYEOF
     fi
 
-    # ── Pi: no MCP support
+    # ── Pi MCP adapter (~/.pi/agent/mcp.json)
     if cli_enabled pi; then
-        echo "  ℹ Pi does not support MCP — skill loaded via AGENTS.md only"
+        python3 - <<'PYEOF'
+import json, pathlib
+cfg_path = pathlib.Path.home() / ".pi" / "agent" / "mcp.json"
+cfg_path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+except json.JSONDecodeError:
+    cfg = {}
+servers = cfg.setdefault("mcpServers", {})
+entry = {
+    "command": "python",
+    "args": ["-m", "contractfirst.server"],
+    "lifecycle": "lazy",
+    "idleTimeout": 10,
+}
+changed = False
+if servers.get("contractfirst") != entry:
+    servers["contractfirst"] = entry
+    changed = True
+legacy = servers.get("lowtech-tdd")
+if isinstance(legacy, dict) and legacy.get("args") == ["-m", "lowtech_tdd_mcp.server"]:
+    servers["lowtech-tdd"] = entry
+    changed = True
+if changed:
+    cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print(f"  ✓ Registered with Pi MCP adapter ({cfg_path})")
+else:
+    print("  ✓ Already registered with Pi MCP adapter")
+PYEOF
     fi
 
     # ── opencode (~/.config/opencode/opencode.json)

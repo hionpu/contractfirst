@@ -12,6 +12,7 @@ MCP_DIR="$HOME/.local/share/contractfirst"
 SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."
+REFS="slicing spec-template platforms test-onboarding links project-types architecture-patterns"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -81,24 +82,51 @@ update_mcp() {
 }
 
 # ── Update skill files ─────────────────────────────────────────
+update_skill_files() {
+    local dir="$1"
+    local skill_name="${2:-contractfirst}"
+    mkdir -p "$dir/references"
+    fetch "$RAW/skill/SKILL.md" > "$dir/SKILL.md"
+    if [[ "$skill_name" != "contractfirst" ]]; then
+        python3 - "$dir/SKILL.md" "$skill_name" <<'PYEOF'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+name = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+text = text.replace("name: contractfirst", f"name: {name}", 1)
+path.write_text(text, encoding="utf-8")
+PYEOF
+    fi
+    for ref in $REFS; do
+        fetch "$RAW/skill/references/$ref.md" > "$dir/references/$ref.md"
+    done
+}
+
 update_skill() {
     echo "→ Updating skill files..."
 
     SKILL_DIR="$TARGET/.claude/skills/contractfirst"
+    PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
+    _updated=false
 
-    if [[ ! -d "$SKILL_DIR" ]]; then
-        echo "  ✗ Skill not installed at $SKILL_DIR"
-        echo "  Install first: curl -fsSL $RAW/install.sh | bash --skill-only --target $TARGET"
-        exit 1
+    if [[ -d "$SKILL_DIR" ]]; then
+        update_skill_files "$SKILL_DIR"
+        echo "  ✓ Skill updated → $SKILL_DIR/SKILL.md"
+        echo "  ✓ References updated → $SKILL_DIR/references/"
+        _updated=true
     fi
 
-    fetch "$RAW/skill/SKILL.md" > "$SKILL_DIR/SKILL.md"
-    for ref in slicing spec-template platforms test-onboarding links project-types architecture-patterns; do
-        fetch "$RAW/skill/references/$ref.md" > "$SKILL_DIR/references/$ref.md"
-    done
+    if [[ -d "$PI_SKILL_DIR" ]]; then
+        update_skill_files "$PI_SKILL_DIR" "lowtech-tdd"
+        echo "  ✓ Pi native skill updated → $PI_SKILL_DIR/SKILL.md"
+        _updated=true
+    fi
 
-    echo "  ✓ Skill updated → $SKILL_DIR/SKILL.md"
-    echo "  ✓ References updated → $SKILL_DIR/references/"
+    if ! $_updated; then
+        echo "  ✗ Skill not installed at $SKILL_DIR or $PI_SKILL_DIR"
+        echo "  Install first: curl -fsSL $RAW/install.sh | bash -s -- --skill-only --target $TARGET"
+        exit 1
+    fi
 }
 
 # ── Run ────────────────────────────────────────────────────────
