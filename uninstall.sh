@@ -39,29 +39,29 @@ fi
 uninstall_skill() {
     echo "→ Removing skill..."
 
-    # Remove .claude dir if it only contains contractfirst files
-    if [[ -d "$TARGET/.claude" ]]; then
-        rm -f "$TARGET/.claude/SKILL.md"
-        rm -rf "$TARGET/.claude/references"
-        # Remove dir only if now empty
+    SKILL_DIR="$TARGET/.claude/skills/contractfirst"
+
+    if [[ -d "$SKILL_DIR" ]]; then
+        rm -rf "$SKILL_DIR"
+        # Remove parent skills/ dir only if now empty
+        rmdir "$TARGET/.claude/skills" 2>/dev/null || true
+        # Remove .claude/ dir only if now empty
         rmdir "$TARGET/.claude" 2>/dev/null && echo "  ✓ Removed $TARGET/.claude/" \
-            || echo "  ✓ Removed skill files (.claude/ kept — other files remain)"
+            || echo "  ✓ Removed $SKILL_DIR (other .claude/ files kept)"
     else
-        echo "  ✓ No skill files found"
+        echo "  ✓ No skill files found at $SKILL_DIR"
     fi
 
-    # Remove contractfirst skill block from CLAUDE.md / AGENTS.md / GEMINI.md.
-    # CLAUDE.md and GEMINI.md use the @.claude/SKILL.md import line.
-    # AGENTS.md (Codex) uses a plain-text directive — strip those lines too.
+    # Remove contractfirst import lines from CLAUDE.md / AGENTS.md / GEMINI.md
     for cfg in "$TARGET/CLAUDE.md" "$TARGET/claude.md" \
                "$TARGET/AGENTS.md" "$TARGET/agents.md" \
                "$TARGET/GEMINI.md" "$TARGET/gemini.md"; do
         if [[ -f "$cfg" ]] && grep -q "contractfirst\|SKILL\.md" "$cfg" 2>/dev/null; then
             sed -i.bak \
                 -e '/# contractfirst/d' \
-                -e '/@\.claude\/SKILL\.md/d' \
+                -e '/@\.claude\/skills\/contractfirst\/SKILL\.md/d' \
                 -e '/This project uses the contractfirst harness\./d' \
-                -e '/Read \.claude\/SKILL\.md and the \.claude\/references\/ directory before any code change\./d' \
+                -e '/Read \.claude\/skills\/contractfirst\/SKILL\.md/d' \
                 "$cfg"
             rm -f "$cfg.bak"
             echo "  ✓ Cleaned $cfg"
@@ -92,15 +92,22 @@ uninstall_mcp() {
     fi
 
     # Deregister from Gemini CLI
-    GEMINI_CFG="$HOME/.gemini/settings.json"
-    if [[ -f "$GEMINI_CFG" ]] && grep -q "contractfirst" "$GEMINI_CFG"; then
-        python3 - <<EOF
-import json
-cfg = json.load(open("$GEMINI_CFG"))
-cfg.get("mcpServers", {}).pop("contractfirst", None)
-json.dump(cfg, open("$GEMINI_CFG", "w"), indent=2)
-print("  ✓ Deregistered from Gemini CLI")
-EOF
+    if has gemini; then
+        python3 - <<'PYEOF'
+import json, pathlib
+cfg_path = pathlib.Path.home() / ".gemini" / "settings.json"
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        cfg = {}
+    if "contractfirst" in cfg.get("mcpServers", {}):
+        cfg["mcpServers"].pop("contractfirst")
+        cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        print("  ✓ Deregistered from Gemini CLI")
+    else:
+        print("  ✓ Not registered with Gemini CLI (skipping)")
+PYEOF
     fi
 
     # Uninstall Python package

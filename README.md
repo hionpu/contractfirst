@@ -34,6 +34,30 @@ Installs both Skill and MCP server, and registers with whatever CLI tools are de
 
 * * *
 
+One-liner Update
+----------------
+
+    curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/update.sh | bash
+
+Pulls latest from GitHub, reinstalls the Python package, and overwrites skill files. Does not touch `CLAUDE.md`, MCP registration, or your project's contract files.
+
+### Options
+
+    # Skill only
+    curl -fsSL .../update.sh | bash -s -- --skill-only
+    
+    # MCP only
+    curl -fsSL .../update.sh | bash -s -- --mcp-only
+    
+    # Update skill in a specific project directory
+    curl -fsSL .../update.sh | bash -s -- --target ./my-project
+
+Or run directly from the local install (no curl needed):
+
+    bash ~/.local/share/contractfirst/update.sh
+
+* * *
+
 One-liner Uninstall
 -------------------
 
