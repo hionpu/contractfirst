@@ -78,9 +78,9 @@ Evaluate the request against the clarity rubric below. Ask targeted questions fo
 - **Edge Cases**: Are failure modes defined?
 - **Invariants**: Are there Safety/Consistency rules to maintain?
 
-### Ambiguity Scoring (Medium / Large)
+### Ambiguity Scoring (Medium / Large) — Audited Two-Step
 
-Score each dimension from 0.0 to 1.0. **Each score must be paired with a verbatim quote from the user's request** (≥ 8 chars), or the literal token `none` if the user said nothing about that dimension. The `score_ambiguity` MCP tool rejects empty / under-length evidence and forces `none`-evidence scores to be ≤ 0.30 — you cannot claim high clarity without producing actual evidence.
+Score each dimension from 0.0 to 1.0. Each score must be paired with a verbatim quote from the user's request (≥ 8 chars), or the literal token `none` if the user said nothing about that dimension. `none`-evidence scores are capped at ≤ 0.30.
 
 | Dimension | Weight |
 |-----------|--------|
@@ -93,26 +93,47 @@ Ambiguity = 1 − Σ(score × weight)
 ```
 
 Rules:
-- Proceed only when **Ambiguity ≤ 0.20** AND **Blocking ambiguity count = 0**
-- Always call `score_ambiguity` and print its `report_markdown` verbatim before proceeding
-- Pass `project_root` to `score_ambiguity` so the gate decision is appended to `.contractfirst/gates.jsonl`
+- Proceed only when **Ambiguity ≤ 0.20** AND **Blocking question count = 0**
 - Boundary/risk dimensions are covered separately by Scale Triage Q0–Q3 — do not double-count
 
-**Required output template (fixed format — produced by `score_ambiguity.report_markdown`):**
-```
-Ambiguity Report
-- Goal clarity: X × 0.40 = Y
-  evidence: <quote or "none">
-- Constraint clarity: X × 0.30 = Y
-  evidence: <quote or "none">
-- Success criteria clarity: X × 0.30 = Y
-  evidence: <quote or "none">
-- Total clarity: Z
-- Ambiguity (1 - clarity): A
-- Blocking questions: N
-- Open questions: M
-- Proceed: YES / NO (threshold 0.20, blocking must be 0)
-```
+**You (Planner / Agent A) are not allowed to confirm your own ambiguity score.** A sub-agent must audit the evidence quotes before the gate decision is finalized. Use the audited two-step:
+
+#### Step 1 — Draft
+
+Call `draft_ambiguity_score(project_root, user_prompt_verbatim, scores, evidence, blocking_questions, open_questions)`.
+
+`user_prompt_verbatim` is the user's original feature request copied **exactly** (not your summary). MCP returns:
+- `draft_id`
+- `audit_token`
+- `auditor_prompt_markdown` — the prompt to give the Auditor sub-agent
+
+#### Step 2 — Dispatch Auditor (CLI-native sub-agent)
+
+Use your CLI's native sub-agent mechanism. Pass `auditor_prompt_markdown` verbatim:
+
+| CLI | Dispatch |
+|-----|----------|
+| Claude Code | `Task` tool with `subagent_type="general-purpose"`, `prompt=<auditor_prompt_markdown>` |
+| Pi | bash: `pi -p --no-tools "<auditor_prompt_markdown>"` (capture stdout) |
+| Codex CLI | bash: `codex exec "<auditor_prompt_markdown>"` (verify your CLI's non-interactive flag) |
+| Gemini CLI | bash: `gemini -p "<auditor_prompt_markdown>"` (verify) |
+
+Capture the sub-agent's full text output as `auditor_transcript`.
+
+#### Step 3 — Commit
+
+Call `commit_ambiguity_audit(project_root, draft_id, auditor_transcript)`. Pass the transcript **verbatim** — do not summarize, paraphrase, or edit. MCP extracts the verdict JSON (must contain the matching `audit_token`), forces rejected dimensions to score 0.0, and returns the final `proceed` decision.
+
+Print the returned `report_markdown` verbatim before continuing.
+
+#### What the audit catches
+
+- Fabricated evidence quotes ("user said X" when user didn't)
+- Forced readings (mapping unrelated user words to a dimension)
+- Inflated `none`-evidence scores
+- Tampered transcripts (missing `audit_token` → rejected)
+
+Tampering surfaces in `.contractfirst/gates.jsonl`. The audit can be skipped by fabricating a transcript with a valid token, but the absence of a real sub-agent invocation in the session log makes this detectable on human review.
 
 ## The Workflow
 
@@ -264,6 +285,8 @@ When verification fails:
 - ❌ Silently updating link blocks or contract artifacts
 - ❌ Proceeding past the Clarification Gate without printing the Ambiguity Report (Medium+)
 - ❌ Inflating ambiguity scores without verbatim evidence quotes (the `score_ambiguity` tool will reject this)
+- ❌ Skipping the Auditor sub-agent and synthesizing a fake `auditor_transcript` to pass to `commit_ambiguity_audit` (audit token enforcement + gates.jsonl audit trail expose this)
+- ❌ Modifying / summarizing / "cleaning up" the Auditor transcript before passing it to `commit_ambiguity_audit` (pass it VERBATIM)
 - ❌ Reporting a feature as done while `run_verify` returns `overall: pending_manual` (ui-heavy / mixed)
 - ❌ Writing a contract-sensitive fix patch before human approves the root cause (Rule H4)
 

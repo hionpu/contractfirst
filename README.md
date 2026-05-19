@@ -86,15 +86,17 @@ What Gets Installed
 
 ### MCP Server (`~/.local/share/contractfirst/`)
 
-Five tools:
+Seven tools:
 
-| Tool                     | What it does                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------ |
-| `run_verify`             | Runs `verify.sh` and returns structured results. With `feature=...`, downgrades a green automatic run to `pending_manual` while manual checks remain. |
-| `score_ambiguity`        | Computes ambiguity score from per-dimension scores **with required verbatim evidence quotes**. Returns `proceed: false` if > 0.20. |
-| `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.contractfirst/config.json`. |
-| `analyze_verify_failure` | Produces root-cause hypotheses. Multi-framework structured detection (pytest/Jest/Go/RSpec/Rust/.NET). Blocks patch writing for contract-sensitive failures. |
-| `track_manual_checks`    | Per-feature ledger of manual verification items. Consumed by `run_verify` to gate `overall: pass` for ui-heavy / mixed projects. |
+| Tool                       | What it does                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `run_verify`               | Runs `verify.sh` and returns structured results. With `feature=...`, downgrades a green automatic run to `pending_manual` while manual checks remain. |
+| `score_ambiguity`          | Single-call ambiguity gate. Requires verbatim evidence quotes; `none`-evidence forces score ≤ 0.30. Returns `proceed: false` if > 0.20. |
+| `draft_ambiguity_score`    | Step 1 of audited two-step gate. Stages Agent A's scores+evidence, returns an auditor prompt and one-time `audit_token` for sub-agent dispatch. |
+| `commit_ambiguity_audit`   | Step 2 of audited two-step gate. Parses sub-agent verdict; forces rejected dimensions to 0.0; returns final `proceed`. |
+| `verify_links`             | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.contractfirst/config.json`. |
+| `analyze_verify_failure`   | Produces root-cause hypotheses. Multi-framework structured detection (pytest/Jest/Go/RSpec/Rust/.NET). Blocks patch writing for contract-sensitive failures. |
+| `track_manual_checks`      | Per-feature ledger of manual verification items. Consumed by `run_verify` to gate `overall: pass` for ui-heavy / mixed projects. |
 
 All gate decisions append one JSON line to `.contractfirst/gates.jsonl` so the history is auditable.
 

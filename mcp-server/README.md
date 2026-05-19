@@ -6,12 +6,14 @@ An MCP server that provides **deterministic, non-bypassable checkpoints** for th
 
 Scope is deliberately narrow. File-write guards, contract-change workflows, plan gates, and human-zone tracking live elsewhere (OS permissions, Git, the skill prompt). This server only handles the parts the AI is most likely to fake or skip.
 
-## The five tools
+## The seven tools
 
 | Tool | Replaces this AI failure mode |
 |------|-------------------------------|
 | `run_verify` | "Tests passed" — when they didn't, or weren't actually run |
-| `score_ambiguity` | "The spec is clear enough" — AI grading its own homework |
+| `score_ambiguity` | "The spec is clear enough" — AI grading its own homework (single-call, evidence-required) |
+| `draft_ambiguity_score` | Self-confirming a clarity score with no second opinion (Step 1 of audited two-step) |
+| `commit_ambiguity_audit` | Skipping or rubber-stamping the auditor (Step 2 — token-gated verdict parse) |
 | `verify_links` | "Links are complete" — without actually checking files |
 | `analyze_verify_failure` | Patching before understanding root cause |
 | `track_manual_checks` | "Done" reported on ui-heavy work while manual playtest items are still pending |
@@ -81,6 +83,58 @@ When `feature` is provided, the tool reads the manual-check ledger for that feat
 
 Weights are fixed at 0.40 / 0.30 / 0.30. Each clarity score must be paired with a verbatim quote from the user's request (≥ 8 chars), or the literal token `"none"` if the user said nothing about that dimension — `"none"` then forces the score to be ≤ 0.30, so the AI cannot claim high clarity without producing actual evidence. `proceed: true` only when `ambiguity <= 0.20` and `blocking_questions` is empty. The returned `report_markdown` is the verbatim template the skill expects to print, including the evidence quotes.
 
+### `draft_ambiguity_score` + `commit_ambiguity_audit` (audited two-step)
+
+Stronger variant of `score_ambiguity`: forces a second-opinion sub-agent audit before the gate decision is finalized. Agent A cannot self-confirm. Two calls per gate.
+
+**Step 1 — draft:**
+
+```jsonc
+{
+  "project_root": "/path/to/repo",
+  "user_prompt_verbatim": "Implement login. Must use OAuth. Verify by signing in with Google.",
+  "goal_clarity": 0.9,
+  "goal_evidence": "Implement login",
+  "constraint_clarity": 0.8,
+  "constraint_evidence": "Must use OAuth",
+  "success_criteria_clarity": 0.85,
+  "success_evidence": "Verify by signing in with Google",
+  "blocking_questions": [],
+  "open_questions": []
+}
+```
+
+Returns `{ draft_id, audit_token, auditor_prompt_markdown, next_action }`. The draft is persisted at `<project_root>/.contractfirst/drafts/<draft_id>.json`. TTL 1 hour; cap 50 drafts per project.
+
+The caller then dispatches a sub-agent with `auditor_prompt_markdown` using its CLI's native mechanism (Claude Code `Task` tool / `pi -p` / `codex exec`).
+
+**Step 2 — commit:**
+
+```jsonc
+{
+  "project_root": "/path/to/repo",
+  "draft_id": "ab12cd34ef56",
+  "auditor_transcript": "...sub-agent's full text output, verbatim..."
+}
+```
+
+MCP extracts the first JSON object containing the matching `audit_token` from the transcript. Required verdict schema:
+
+```json
+{
+  "audit_token": "<token from draft response>",
+  "dimensions": {
+    "goal":       {"valid": true,  "reason": "..."},
+    "constraint": {"valid": false, "reason": "..."},
+    "success":    {"valid": true,  "reason": "..."}
+  }
+}
+```
+
+Any dimension with `valid: false` has its score forced to 0.0 in the final calculation. Token mismatch, malformed JSON, or schema violation → error (draft NOT consumed, retryable). Successful parse consumes the draft (single-shot, prevents brute-forcing).
+
+Both calls append to `gates.jsonl` — including the rejected dimensions on commit — so post-hoc human review can detect skipped audits.
+
 ### `verify_links`
 
 ```jsonc
@@ -148,7 +202,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-47 tests across the five tools, covering happy paths, classifier signals across frameworks, the manual-check interlock, evidence validation, and gate-log emission.
+64 tests across the seven tools, covering happy paths, classifier signals across frameworks, the manual-check interlock, evidence validation, and gate-log emission.
 
 ## Design notes
 
