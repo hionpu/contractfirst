@@ -146,6 +146,23 @@ else:
 PYEOF
     fi
 
+    # Deregister from opencode (~/.config/opencode/opencode.json)
+    python3 - <<'PYEOF'
+import json, pathlib
+cfg_path = pathlib.Path.home() / ".config" / "opencode" / "opencode.json"
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        cfg = {}
+    if "contractfirst" in cfg.get("mcp", {}):
+        cfg["mcp"].pop("contractfirst")
+        cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        print("  ✓ Deregistered from opencode")
+    else:
+        print("  ✓ Not registered with opencode (skipping)")
+PYEOF
+
     # Uninstall Python package
     if python3 -c "import contractfirst" &>/dev/null; then
         if command -v uv &>/dev/null; then
