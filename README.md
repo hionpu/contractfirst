@@ -44,7 +44,7 @@ Default (no `--cli`): auto-detects installed CLIs from PATH.
 | `claude` | `CLAUDE.md` (`@`-import) | `claude mcp add` (project-scoped) |
 | `codex` | `AGENTS.md` (plain-text directive) | `~/.codex/config.toml` |
 | `gemini` | `GEMINI.md` (`@`-import) | `~/.gemini/settings.json` |
-| `pi` | `~/.pi/agent/skills/lowtech-tdd` + `AGENTS.md` | `~/.pi/agent/mcp.json` (Pi MCP adapter extension) |
+| `pi` | `~/.pi/agent/skills/contractfirst` + `AGENTS.md` | `~/.pi/agent/mcp.json` ([pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)) |
 | `opencode` | `AGENTS.md` (plain-text directive) | `~/.config/opencode/opencode.json` |
 
 * * *

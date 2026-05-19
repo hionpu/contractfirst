@@ -6,6 +6,8 @@
 
 set -e
 
+SCRIPT_VERSION="2026-05-19 13:37"
+
 REPO="https://github.com/hionpu/contractfirst"
 RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"
 MCP_DIR="$HOME/.local/share/contractfirst"
@@ -26,6 +28,7 @@ done
 echo "╔══════════════════════════════════════╗"
 echo "║      contractfirst Update      ║"
 echo "╚══════════════════════════════════════╝"
+echo "  script version: $SCRIPT_VERSION"
 echo ""
 
 has() { command -v "$1" &>/dev/null; }

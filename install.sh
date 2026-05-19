@@ -11,6 +11,8 @@
 
 set -e
 
+SCRIPT_VERSION="2026-05-19 13:37"
+
 REPO="https://github.com/hionpu/contractfirst"
 RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"
 SKILL_ONLY=false
@@ -33,6 +35,7 @@ done
 echo "╔══════════════════════════════════════╗"
 echo "║      contractfirst Setup       ║"
 echo "╚══════════════════════════════════════╝"
+echo "  script version: $SCRIPT_VERSION"
 echo ""
 
 has() { command -v "$1" &>/dev/null; }
@@ -105,10 +108,10 @@ install_skill() {
     install_skill_files "$SKILL_DIR"
     echo "  ✓ Skill files → $SKILL_DIR/"
 
-    # ── Pi native skill store: replace legacy lowtech-tdd skill in the global Pi agent dir.
+    # ── Pi native skill store
     if cli_enabled pi; then
-        PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
-        install_skill_files "$PI_SKILL_DIR" "lowtech-tdd"
+        PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/contractfirst}"
+        install_skill_files "$PI_SKILL_DIR"
         echo "  ✓ Pi native skill → $PI_SKILL_DIR/"
     fi
 
@@ -245,9 +248,9 @@ if "contractfirst" not in cfg.get("mcpServers", {}):
         "args": ["-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  OK Registered with Gemini CLI (~/.gemini/settings.json)")
+    print("  ✓ Registered with Gemini CLI (~/.gemini/settings.json)")
 else:
-    print("  OK Already registered with Gemini CLI")
+    print("  ✓ Already registered with Gemini CLI")
 PYEOF
     fi
 
@@ -272,15 +275,15 @@ changed = False
 if servers.get("contractfirst") != entry:
     servers["contractfirst"] = entry
     changed = True
-legacy = servers.get("lowtech-tdd")
-if isinstance(legacy, dict) and legacy.get("args") == ["-m", "lowtech_tdd_mcp.server"]:
-    servers["lowtech-tdd"] = entry
+# Remove legacy lowtech-tdd key if present (rename migration)
+if "lowtech-tdd" in servers:
+    del servers["lowtech-tdd"]
     changed = True
 if changed:
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print(f"  OK Registered with Pi MCP adapter ({cfg_path})")
+    print(f"  ✓ Registered with Pi MCP adapter ({cfg_path})")
 else:
-    print("  OK Already registered with Pi MCP adapter")
+    print("  ✓ Already registered with Pi MCP adapter")
 PYEOF
     fi
 
@@ -300,9 +303,9 @@ if "contractfirst" not in cfg.get("mcp", {}):
         "command": ["python", "-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  OK Registered with opencode (~/.config/opencode/opencode.json)")
+    print("  ✓ Registered with opencode (~/.config/opencode/opencode.json)")
 else:
-    print("  OK Already registered with opencode")
+    print("  ✓ Already registered with opencode")
 PYEOF
     fi
 }

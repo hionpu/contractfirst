@@ -8,6 +8,8 @@
 
 set -e
 
+SCRIPT_VERSION="2026-05-19 13:37"
+
 SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."
@@ -24,6 +26,7 @@ done
 echo "╔══════════════════════════════════════╗"
 echo "║  contractfirst Removal  ║"
 echo "╚══════════════════════════════════════╝"
+echo "  script version: $SCRIPT_VERSION"
 echo ""
 
 has() { command -v "$1" &>/dev/null; }
@@ -52,11 +55,14 @@ uninstall_skill() {
         echo "  ✓ No skill files found at $SKILL_DIR"
     fi
 
-    PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
-    if [[ -d "$PI_SKILL_DIR" ]] && grep -q "contractfirst" "$PI_SKILL_DIR/SKILL.md" 2>/dev/null; then
-        rm -rf "$PI_SKILL_DIR"
-        echo "  ✓ Removed Pi native skill at $PI_SKILL_DIR"
-    fi
+    for _pi_dir in \
+        "${PI_SKILL_DIR:-}" \
+        "$HOME/.pi/agent/skills/contractfirst" \
+        "$HOME/.pi/agent/skills/lowtech-tdd"; do
+        [[ -n "$_pi_dir" && -d "$_pi_dir" ]] || continue
+        rm -rf "$_pi_dir"
+        echo "  ✓ Removed Pi native skill at $_pi_dir"
+    done
 
     # Remove contractfirst import lines from CLAUDE.md / AGENTS.md / GEMINI.md
     for cfg in "$TARGET/CLAUDE.md" "$TARGET/claude.md" \
@@ -110,9 +116,9 @@ if cfg_path.exists():
     if "contractfirst" in cfg.get("mcpServers", {}):
         cfg["mcpServers"].pop("contractfirst")
         cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-        print("  OK Deregistered from Gemini CLI")
+        print("  ✓ Deregistered from Gemini CLI")
     else:
-        print("  OK Not registered with Gemini CLI (skipping)")
+        print("  ✓ Not registered with Gemini CLI (skipping)")
 PYEOF
     fi
 
@@ -128,18 +134,15 @@ except Exception:
     cfg = {}
 servers = cfg.get("mcpServers", {})
 changed = False
-if "contractfirst" in servers:
-    servers.pop("contractfirst")
-    changed = True
-legacy = servers.get("lowtech-tdd")
-if isinstance(legacy, dict) and legacy.get("args") == ["-m", "contractfirst.server"]:
-    servers.pop("lowtech-tdd")
-    changed = True
+for key in ["contractfirst", "lowtech-tdd"]:
+    if key in servers:
+        servers.pop(key)
+        changed = True
 if changed:
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  OK Deregistered from Pi MCP adapter")
+    print("  ✓ Deregistered from Pi MCP adapter")
 else:
-    print("  OK Not registered with Pi MCP adapter (skipping)")
+    print("  ✓ Not registered with Pi MCP adapter (skipping)")
 PYEOF
     fi
 
