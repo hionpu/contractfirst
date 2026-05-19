@@ -2,7 +2,7 @@
 
 Resolution order for `link_dirs`:
     1. Per-call `link_dirs` argument (highest priority).
-    2. `<project_root>/.lowtech-tdd/config.json` -> "link_dirs".
+    2. `<project_root>/.contractfirst/config.json` -> "link_dirs".
     3. Built-in defaults.
 """
 
@@ -19,7 +19,7 @@ DEFAULT_LINK_DIRS = {
     "interfaces": "src/**/interfaces",
     "tests": "tests",
 }
-CONFIG_RELPATH = ".lowtech-tdd/config.json"
+CONFIG_RELPATH = ".contractfirst/config.json"
 
 
 def _load_config_link_dirs(root: Path) -> dict[str, str]:

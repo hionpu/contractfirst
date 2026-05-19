@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lowtech_tdd_mcp.manual_checks import read_summary, track_manual_checks
+from contractfirst.manual_checks import read_summary, track_manual_checks
 
 
 def test_declare_creates_ledger(tmp_path: Path):
@@ -23,7 +23,7 @@ def test_declare_creates_ledger(tmp_path: Path):
     assert result["summary"]["all_required_resolved"] is False
     assert set(result["summary"]["pending_ids"]) == {"V1", "V2"}
 
-    ledger = tmp_path / ".lowtech-tdd" / "manual-checks" / "minigame-ui.json"
+    ledger = tmp_path / ".contractfirst" / "manual-checks" / "minigame-ui.json"
     assert ledger.is_file()
     data = json.loads(ledger.read_text(encoding="utf-8"))
     assert data["feature"] == "minigame-ui"
@@ -171,7 +171,7 @@ def test_gates_log_appended(tmp_path: Path):
     track_manual_checks(
         project_root=str(tmp_path), feature="x", op="confirm", check_id="V1"
     )
-    gates = tmp_path / ".lowtech-tdd" / "gates.jsonl"
+    gates = tmp_path / ".contractfirst" / "gates.jsonl"
     assert gates.is_file()
     lines = gates.read_text(encoding="utf-8").splitlines()
     assert len(lines) >= 2

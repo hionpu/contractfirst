@@ -1,4 +1,4 @@
-"""FastMCP server for the lowtech-tdd checkpoint tools."""
+"""FastMCP server for the contractfirst checkpoint tools."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from .links import verify_links as _verify_links
 from .manual_checks import track_manual_checks as _track_manual_checks
 from .verify import run_verify as _run_verify
 
-mcp = FastMCP("lowtech-tdd-mcp")
+mcp = FastMCP("contractfirst-mcp")
 
 
 @mcp.tool()
@@ -28,7 +28,7 @@ def run_verify(
     project's verify.sh (passing `scope` as its first argument) or falls back
     to language-detected defaults (npm or pytest/mypy/ruff). Per-step exit
     codes, durations, and truncated logs are returned; full logs are saved
-    under .lowtech-tdd/.
+    under .contractfirst/.
 
     When `feature` is provided, the tool consults the manual-check ledger
     (`track_manual_checks`) for that feature. If any required manual check is
@@ -70,7 +70,7 @@ def score_ambiguity(
     human can judge whether the quote justifies the score.
 
     Passing `project_root` enables a one-line entry in
-    `<project_root>/.lowtech-tdd/gates.jsonl` so the gate decision is
+    `<project_root>/.contractfirst/gates.jsonl` so the gate decision is
     auditable later.
     """
     return _score_ambiguity(
@@ -101,7 +101,7 @@ def verify_links(
     spec — full-scan only). Read-only; never edits files.
 
     Folder resolution order: per-call `link_dirs` > `<project_root>/
-    .lowtech-tdd/config.json` ("link_dirs") > built-in defaults.
+    .contractfirst/config.json` ("link_dirs") > built-in defaults.
     """
     return _verify_links(project_root=project_root, feature=feature, link_dirs=link_dirs)
 
@@ -165,7 +165,7 @@ def track_manual_checks(
       list     — return the full ledger.
       summary  — return only the summary block (default).
 
-    Ledger persisted at `<project_root>/.lowtech-tdd/manual-checks/<feature>.json`.
+    Ledger persisted at `<project_root>/.contractfirst/manual-checks/<feature>.json`.
     """
     return _track_manual_checks(
         project_root=project_root,

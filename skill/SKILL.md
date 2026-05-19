@@ -1,9 +1,9 @@
 ---
-name: lowtech-tdd
+name: contractfirst
 description: Contract-enforced implementation harness for AI-assisted coding. Apply this skill whenever the user wants to implement a feature, fix a bug, or refactor code. Enforces Socratic clarification, ambiguity scoring, contract definition (Spec/Invariant/Interface/Test), strict implementation boundaries, and human skill preservation. Skip for pure Q&A.
 ---
 
-# Low-Tech Dept: Contract-Enforced Implementation Harness
+# contractfirst: Contract-Enforced Implementation Harness
 
 ## Core Philosophy
 
@@ -27,7 +27,7 @@ To prevent the human from becoming a mere "approval button" and losing debugging
 
 ## Project Type (session-level, one-time)
 
-Look in the loaded agent-instructions file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) for `<!-- lowtech-tdd: project_type=X -->` where `X` ∈ `{logic-heavy, ui-heavy, mixed}`. If present, use it silently. If absent, follow the detection + persistence protocol in `references/project-types.md` (one-time cost per project).
+Look in the loaded agent-instructions file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) for `<!-- contractfirst: project_type=X -->` where `X` ∈ `{logic-heavy, ui-heavy, mixed}`. If present, use it silently. If absent, follow the detection + persistence protocol in `references/project-types.md` (one-time cost per project).
 
 | Type | Examples | Verify Gate emphasis |
 |------|----------|----------------------|
@@ -95,7 +95,7 @@ Ambiguity = 1 − Σ(score × weight)
 Rules:
 - Proceed only when **Ambiguity ≤ 0.20** AND **Blocking ambiguity count = 0**
 - Always call `score_ambiguity` and print its `report_markdown` verbatim before proceeding
-- Pass `project_root` to `score_ambiguity` so the gate decision is appended to `.lowtech-tdd/gates.jsonl`
+- Pass `project_root` to `score_ambiguity` so the gate decision is appended to `.contractfirst/gates.jsonl`
 - Boundary/risk dimensions are covered separately by Scale Triage Q0–Q3 — do not double-count
 
 **Required output template (fixed format — produced by `score_ambiguity.report_markdown`):**

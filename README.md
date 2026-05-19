@@ -1,4 +1,4 @@
-lowtech-tdd
+contractfirst
 ===========
 
 **Contract-enforced development harness for AI-assisted coding.**
@@ -39,7 +39,7 @@ One-liner Uninstall
 
     curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/uninstall.sh | bash
 
-Removes skill files, cleans up CLI config imports, deregisters the MCP server, and uninstalls the Python package. Verify logs (`.lowtech-tdd/`) are removed interactively.
+Removes skill files, cleans up CLI config imports, deregisters the MCP server, and uninstalls the Python package. Verify logs (`.contractfirst/`) are removed interactively.
 
 ### Options
 
@@ -69,11 +69,11 @@ Removes skill files, cleans up CLI config imports, deregisters the MCP server, a
 What Gets Installed
 -------------------
 
-### Skill (`<project>/.claude/skills/lowtech-tdd/`)
+### Skill (`<project>/.claude/skills/contractfirst/`)
 
     .claude/
     └── skills/
-        └── lowtech-tdd/
+        └── contractfirst/
             ├── SKILL.md                  ← loaded at session start
             └── references/
                 ├── slicing.md                ← vertical slice guide
@@ -84,7 +84,7 @@ What Gets Installed
                 ├── project-types.md          ← logic-heavy / ui-heavy / mixed guidance
                 └── architecture-patterns.md  ← MVC / MVVM / ECS / Flux / Hexagonal invariants
 
-### MCP Server (`~/.local/share/lowtech-tdd-mcp/`)
+### MCP Server (`~/.local/share/contractfirst/`)
 
 Five tools:
 
@@ -92,11 +92,11 @@ Five tools:
 | ------------------------ | ------------------------------------------------------------------------------------------ |
 | `run_verify`             | Runs `verify.sh` and returns structured results. With `feature=...`, downgrades a green automatic run to `pending_manual` while manual checks remain. |
 | `score_ambiguity`        | Computes ambiguity score from per-dimension scores **with required verbatim evidence quotes**. Returns `proceed: false` if > 0.20. |
-| `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.lowtech-tdd/config.json`. |
+| `verify_links`           | Parses contract files and checks Spec ↔ Invariant ↔ Interface ↔ Test link integrity. Honors `.contractfirst/config.json`. |
 | `analyze_verify_failure` | Produces root-cause hypotheses. Multi-framework structured detection (pytest/Jest/Go/RSpec/Rust/.NET). Blocks patch writing for contract-sensitive failures. |
 | `track_manual_checks`    | Per-feature ledger of manual verification items. Consumed by `run_verify` to gate `overall: pass` for ui-heavy / mixed projects. |
 
-All gate decisions append one JSON line to `.lowtech-tdd/gates.jsonl` so the history is auditable.
+All gate decisions append one JSON line to `.contractfirst/gates.jsonl` so the history is auditable.
 
 * * *
 
@@ -106,24 +106,24 @@ Manual Setup
 ### Skill only
 
     git clone https://github.com/hionpu/contractfirst
-    mkdir -p /path/to/your/project/.claude/skills/lowtech-tdd
-    cp -r skill/SKILL.md skill/references /path/to/your/project/.claude/skills/lowtech-tdd/
-    echo "@.claude/skills/lowtech-tdd/SKILL.md" >> /path/to/your/project/CLAUDE.md
+    mkdir -p /path/to/your/project/.claude/skills/contractfirst
+    cp -r skill/SKILL.md skill/references /path/to/your/project/.claude/skills/contractfirst/
+    echo "@.claude/skills/contractfirst/SKILL.md" >> /path/to/your/project/CLAUDE.md
 
 ### MCP server only
 
     pip install -e ./mcp-server
     
     # Claude Code
-    claude mcp add lowtech-tdd --scope project -- python -m lowtech_tdd_mcp.server
+    claude mcp add contractfirst --scope project -- python -m contractfirst.server
     
     # Codex CLI — append to ~/.codex/config.toml:
-    # [mcp_servers.lowtech-tdd]
+    # [mcp_servers.contractfirst]
     # command = "python"
-    # args = ["-m", "lowtech_tdd_mcp.server"]
+    # args = ["-m", "contractfirst.server"]
     
     # Gemini CLI — add to ~/.gemini/settings.json:
-    # { "mcpServers": { "lowtech-tdd": { "command": "python", "args": ["-m", "lowtech_tdd_mcp.server"] } } }
+    # { "mcpServers": { "contractfirst": { "command": "python", "args": ["-m", "contractfirst.server"] } } }
 
 * * *
 
@@ -185,7 +185,7 @@ How It Works
 Repository Structure
 --------------------
 
-    lowtech-tdd/
+    contractfirst/
     ├── install.sh                  ← one-liner installer
     ├── uninstall.sh                ← one-liner uninstaller
     ├── README.md
@@ -203,7 +203,7 @@ Repository Structure
         ├── pyproject.toml
         ├── README.md
         └── src/
-            └── lowtech_tdd_mcp/
+            └── contractfirst/
                 ├── server.py
                 ├── verify.py
                 ├── ambiguity.py

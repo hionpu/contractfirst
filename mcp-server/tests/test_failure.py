@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from lowtech_tdd_mcp.failure import analyze_verify_failure
+from contractfirst.failure import analyze_verify_failure
 
 
 def _write_log(root: Path, body: str) -> Path:
-    log_dir = root / ".lowtech-tdd"
+    log_dir = root / ".contractfirst"
     log_dir.mkdir(parents=True, exist_ok=True)
     log = log_dir / "verify-20260511-000000.log"
     log.write_text(body, encoding="utf-8")
@@ -51,7 +51,7 @@ INV-3 violated
 
 def test_jest_failure_classified_contract_sensitive(tmp_path: Path):
     """Jest output uses '●' headers — must trip the structured detector even on a typecheck step."""
-    log_dir = tmp_path / ".lowtech-tdd"
+    log_dir = tmp_path / ".contractfirst"
     log_dir.mkdir(parents=True)
     log = log_dir / "verify.log"
     log.write_text(
@@ -73,7 +73,7 @@ def test_jest_failure_classified_contract_sensitive(tmp_path: Path):
 
 
 def test_go_failure_classified_contract_sensitive(tmp_path: Path):
-    log_dir = tmp_path / ".lowtech-tdd"
+    log_dir = tmp_path / ".contractfirst"
     log_dir.mkdir(parents=True)
     log = log_dir / "verify.log"
     log.write_text(
@@ -92,7 +92,7 @@ def test_go_failure_classified_contract_sensitive(tmp_path: Path):
 
 def test_lint_with_no_contract_signal_stays_routine(tmp_path: Path):
     """The keyword 'should' alone (no structured marker, non-contract path) must NOT flip to contract."""
-    log_dir = tmp_path / ".lowtech-tdd"
+    log_dir = tmp_path / ".contractfirst"
     log_dir.mkdir(parents=True)
     log = log_dir / "verify.log"
     log.write_text(
@@ -114,7 +114,7 @@ def test_contract_path_flips_classification(tmp_path: Path):
     """A failure pointing at a tests/ file flips classification even with no exception."""
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_x.py").write_text("# t\n")
-    log_dir = tmp_path / ".lowtech-tdd"
+    log_dir = tmp_path / ".contractfirst"
     log_dir.mkdir(parents=True)
     log = log_dir / "verify.log"
     log.write_text(

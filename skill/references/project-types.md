@@ -70,7 +70,7 @@ The protocol is designed so that **only the first session pays any cost**. Every
 Look in the loaded `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` for:
 
 ```
-<!-- lowtech-tdd: project_type=X -->
+<!-- contractfirst: project_type=X -->
 ```
 
 where `X` ∈ `{logic-heavy, ui-heavy, mixed}`. If present, **use that value silently and stop**. Do not scan the codebase. Do not ask the user.
@@ -96,7 +96,7 @@ Confirm, or correct with one of the other two?
 Append exactly one line to the agent-instructions file:
 
 ```
-<!-- lowtech-tdd: project_type=ui-heavy -->
+<!-- contractfirst: project_type=ui-heavy -->
 ```
 
 From the next session onward, Step 1 short-circuits to a free read.

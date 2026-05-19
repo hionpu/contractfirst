@@ -6,7 +6,7 @@ like "done" even though the SKILL.md Verify Gate says it is not for ui-heavy
 or mixed projects. This tool persists a per-feature ledger that `run_verify`
 consults to gate `overall: pass`.
 
-Storage layout (under <project_root>/.lowtech-tdd/manual-checks/):
+Storage layout (under <project_root>/.contractfirst/manual-checks/):
     <feature>.json   one ledger file per feature slug
 
 Schema (per file):
@@ -42,7 +42,7 @@ FEATURE_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
 def _ledger_dir(root: Path) -> Path:
-    return root / ".lowtech-tdd" / "manual-checks"
+    return root / ".contractfirst" / "manual-checks"
 
 
 def _ledger_path(root: Path, feature: str) -> Path:

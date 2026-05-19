@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from lowtech_tdd_mcp.manual_checks import track_manual_checks
-from lowtech_tdd_mcp.verify import run_verify
+from contractfirst.manual_checks import track_manual_checks
+from contractfirst.verify import run_verify
 
 
 def _write_verify_script(root: Path, exit_code: int = 0, message: str = "ok") -> str:
@@ -35,7 +35,7 @@ def test_happy_path_with_verify_script(tmp_path: Path):
     assert "all-good" in result["steps"][0]["stdout_tail"]
     log_path = Path(result["log_path"])
     assert log_path.is_file()
-    assert ".lowtech-tdd" in str(log_path)
+    assert ".contractfirst" in str(log_path)
 
 
 def test_failing_verify_script(tmp_path: Path):
@@ -121,7 +121,7 @@ def test_manual_gate_does_not_mask_real_failure(tmp_path: Path):
 def test_run_verify_logs_to_gates_jsonl(tmp_path: Path):
     rel = _write_verify_script(tmp_path, exit_code=0, message="ok")
     run_verify(project_root=str(tmp_path), scope="full", verify_script=rel)
-    gates = tmp_path / ".lowtech-tdd" / "gates.jsonl"
+    gates = tmp_path / ".contractfirst" / "gates.jsonl"
     assert gates.is_file()
     assert "run_verify" in gates.read_text(encoding="utf-8")
 

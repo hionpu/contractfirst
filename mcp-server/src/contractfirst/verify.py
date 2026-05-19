@@ -177,7 +177,7 @@ def _apply_manual_gate(automatic_overall: str, manual: dict[str, Any] | None) ->
 
 def _write_log(log_path: Path, scope: str, steps: list[dict[str, Any]], full_outputs: list[tuple[str, str, str]]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [f"# lowtech-tdd verify log", f"# scope: {scope}", f"# timestamp: {datetime.now().isoformat()}", ""]
+    lines = [f"# contractfirst verify log", f"# scope: {scope}", f"# timestamp: {datetime.now().isoformat()}", ""]
     for step, (name, out, err) in zip(steps, full_outputs):
         lines.append(f"## step: {name}")
         lines.append(f"status: {step['status']}  exit_code: {step['exit_code']}  duration: {step['duration_seconds']}s")
@@ -212,7 +212,7 @@ def run_verify(
         full_outputs = [(s["name"], s["stdout_tail"], s["stderr_tail"]) for s in steps]
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_path = root / ".lowtech-tdd" / f"verify-{timestamp}.log"
+    log_path = root / ".contractfirst" / f"verify-{timestamp}.log"
     try:
         _write_log(log_path, scope, steps, full_outputs)
         log_path_str = str(log_path)

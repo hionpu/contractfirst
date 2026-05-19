@@ -1,8 +1,8 @@
-# lowtech-tdd-mcp
+# contractfirst
 
-> Python package name: `lowtech-tdd-mcp`. MCP server registration name (what you pass to `claude mcp add` / config files): `lowtech-tdd`.
+> Python package name: `contractfirst`. MCP server registration name (what you pass to `claude mcp add` / config files): `contractfirst`.
 
-An MCP server that provides **deterministic, non-bypassable checkpoints** for the [`lowtech-tdd`](https://github.com/hionpu/contractfirst) workflow. The `lowtech-tdd` skill is a prompt — when context drifts, the model can ignore it. This server exposes five tools whose outputs are externally verifiable: if the AI claims tests passed, you can re-run the same tool on the same inputs and falsify the claim.
+An MCP server that provides **deterministic, non-bypassable checkpoints** for the [`contractfirst`](https://github.com/hionpu/contractfirst) workflow. The `contractfirst` skill is a prompt — when context drifts, the model can ignore it. This server exposes five tools whose outputs are externally verifiable: if the AI claims tests passed, you can re-run the same tool on the same inputs and falsify the claim.
 
 Scope is deliberately narrow. File-write guards, contract-change workflows, plan gates, and human-zone tracking live elsewhere (OS permissions, Git, the skill prompt). This server only handles the parts the AI is most likely to fake or skip.
 
@@ -16,7 +16,7 @@ Scope is deliberately narrow. File-write guards, contract-change workflows, plan
 | `analyze_verify_failure` | Patching before understanding root cause |
 | `track_manual_checks` | "Done" reported on ui-heavy work while manual playtest items are still pending |
 
-Every gate decision (proceed/no, patch_allowed, overall, manual-check resolution) appends one JSON line to `<project_root>/.lowtech-tdd/gates.jsonl` for after-the-fact audit.
+Every gate decision (proceed/no, patch_allowed, overall, manual-check resolution) appends one JSON line to `<project_root>/.contractfirst/gates.jsonl` for after-the-fact audit.
 
 ## Install
 
@@ -33,15 +33,15 @@ Requires Python 3.11+.
 **Claude Code**
 
 ```bash
-claude mcp add lowtech-tdd -- python -m lowtech_tdd_mcp.server
+claude mcp add contractfirst -- python -m contractfirst.server
 ```
 
 **Codex CLI** (`~/.codex/config.toml`)
 
 ```toml
-[mcp_servers.lowtech-tdd]
+[mcp_servers.contractfirst]
 command = "python"
-args = ["-m", "lowtech_tdd_mcp.server"]
+args = ["-m", "contractfirst.server"]
 ```
 
 Both clients launch the server over stdio.
@@ -59,7 +59,7 @@ Both clients launch the server over stdio.
 }
 ```
 
-Runs `./verify.sh full` if the script exists; otherwise falls back to language-detected defaults (`npm run typecheck/test/lint/build` for Node, `mypy . / pytest / ruff check .` for Python). Full logs are written under `<project_root>/.lowtech-tdd/verify-<timestamp>.log`; the truncated tail (last 2000 chars per stream) is returned inline.
+Runs `./verify.sh full` if the script exists; otherwise falls back to language-detected defaults (`npm run typecheck/test/lint/build` for Node, `mypy . / pytest / ruff check .` for Python). Full logs are written under `<project_root>/.contractfirst/verify-<timestamp>.log`; the truncated tail (last 2000 chars per stream) is returned inline.
 
 When `feature` is provided, the tool reads the manual-check ledger for that feature. If any required manual check is still pending and automatic checks did not fail, `overall` is downgraded to `pending_manual` — a green automatic run cannot be reported as done on ui-heavy / mixed projects.
 
@@ -92,14 +92,14 @@ Weights are fixed at 0.40 / 0.30 / 0.30. Each clarity score must be paired with 
 
 Parses each spec's `## Links` section (or `<!-- LINKS -->` block) and verifies that referenced files exist and contain a reciprocal back-link. Reports `missing`, `stale`, and `orphaned` categories. Read-only.
 
-Folder resolution: per-call `link_dirs` argument > `<project_root>/.lowtech-tdd/config.json` (`"link_dirs"` key) > built-in defaults. Monorepos that don't follow `docs/specs` / `docs/invariants` should set the config file once instead of overriding every call.
+Folder resolution: per-call `link_dirs` argument > `<project_root>/.contractfirst/config.json` (`"link_dirs"` key) > built-in defaults. Monorepos that don't follow `docs/specs` / `docs/invariants` should set the config file once instead of overriding every call.
 
 ### `analyze_verify_failure`
 
 ```jsonc
 {
   "project_root": "/path/to/repo",
-  "verify_log_path": "/path/to/repo/.lowtech-tdd/verify-20260511-103000.log",
+  "verify_log_path": "/path/to/repo/.contractfirst/verify-20260511-103000.log",
   "failed_step": "test",
   "contract_paths": ["docs/invariants/payment.md"]
 }
@@ -139,7 +139,7 @@ For `contract_sensitive`, `h4_gate.patch_allowed` is `false` and no fix snippet 
 { "project_root": "...", "feature": "minigame-ui", "op": "summary" }
 ```
 
-Per-feature ledger persisted at `<project_root>/.lowtech-tdd/manual-checks/<feature>.json`. `run_verify(feature=...)` consults this ledger to gate `overall: pass`. This is the primary verification surface for ui-heavy projects (visual layout, interaction feel, focus order, playtest) — things `verify.sh` cannot check.
+Per-feature ledger persisted at `<project_root>/.contractfirst/manual-checks/<feature>.json`. `run_verify(feature=...)` consults this ledger to gate `overall: pass`. This is the primary verification surface for ui-heavy projects (visual layout, interaction feel, focus order, playtest) — things `verify.sh` cannot check.
 
 ## Run the tests
 

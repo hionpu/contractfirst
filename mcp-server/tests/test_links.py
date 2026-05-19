@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lowtech_tdd_mcp.links import verify_links
+from contractfirst.links import verify_links
 
 
 def _scaffold(root: Path) -> None:
@@ -133,12 +133,12 @@ def test_bare_links_self_reference_skipped(tmp_path: Path):
 
 
 def test_config_json_overrides_default_link_dirs(tmp_path: Path):
-    """`.lowtech-tdd/config.json` link_dirs override the built-in defaults."""
+    """`.contractfirst/config.json` link_dirs override the built-in defaults."""
     (tmp_path / "design").mkdir()
     (tmp_path / "design" / "specs").mkdir()
     (tmp_path / "design" / "invariants").mkdir()
-    (tmp_path / ".lowtech-tdd").mkdir()
-    (tmp_path / ".lowtech-tdd" / "config.json").write_text(
+    (tmp_path / ".contractfirst").mkdir()
+    (tmp_path / ".contractfirst" / "config.json").write_text(
         '{"link_dirs": {"specs": "design/specs", "invariants": "design/invariants"}}',
         encoding="utf-8",
     )
@@ -157,8 +157,8 @@ def test_config_json_overrides_default_link_dirs(tmp_path: Path):
 
 def test_per_call_link_dirs_outrank_config(tmp_path: Path):
     """An explicit link_dirs arg overrides config.json."""
-    (tmp_path / ".lowtech-tdd").mkdir()
-    (tmp_path / ".lowtech-tdd" / "config.json").write_text(
+    (tmp_path / ".contractfirst").mkdir()
+    (tmp_path / ".contractfirst" / "config.json").write_text(
         '{"link_dirs": {"specs": "wrong-path"}}', encoding="utf-8"
     )
     (tmp_path / "docs" / "specs").mkdir(parents=True)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# lowtech-tdd installer
+# contractfirst installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/install.sh | bash
 # Or with options:
 #   bash install.sh --skill-only
@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "╔══════════════════════════════════════╗"
-echo "║   Low-Tech Dept TDD Harness Setup   ║"
+echo "║      contractfirst Setup       ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
@@ -54,7 +54,7 @@ install_skill() {
     echo "→ Installing skill..."
 
     # Skill lives in its own subdirectory so it doesn't collide with other skills
-    SKILL_DIR="$TARGET/.claude/skills/lowtech-tdd"
+    SKILL_DIR="$TARGET/.claude/skills/contractfirst"
     mkdir -p "$SKILL_DIR/references"
 
     fetch "$RAW/skill/SKILL.md" > "$SKILL_DIR/SKILL.md"
@@ -76,10 +76,10 @@ install_skill() {
         touch "$CLAUDE_MD"
     fi
 
-    if ! grep -q "lowtech-tdd" "$CLAUDE_MD" 2>/dev/null; then
+    if ! grep -q "contractfirst" "$CLAUDE_MD" 2>/dev/null; then
         echo "" >> "$CLAUDE_MD"
-        echo "# Low-Tech Dept TDD Harness" >> "$CLAUDE_MD"
-        echo "@.claude/skills/lowtech-tdd/SKILL.md" >> "$CLAUDE_MD"
+        echo "# contractfirst" >> "$CLAUDE_MD"
+        echo "@.claude/skills/contractfirst/SKILL.md" >> "$CLAUDE_MD"
     fi
 
     echo "  ✓ Skill installed → $SKILL_DIR/SKILL.md"
@@ -94,16 +94,16 @@ install_skill() {
             [[ -f "$candidate" ]] && AGENTS_MD="$candidate" && break
         done
         [[ -z "$AGENTS_MD" ]] && AGENTS_MD="$TARGET/AGENTS.md" && touch "$AGENTS_MD"
-        if ! grep -q "lowtech-tdd\|SKILL\.md" "$AGENTS_MD" 2>/dev/null; then
+        if ! grep -q "contractfirst\|SKILL\.md" "$AGENTS_MD" 2>/dev/null; then
             echo "" >> "$AGENTS_MD"
-            echo "# Low-Tech Dept TDD Harness" >> "$AGENTS_MD"
-            echo "This project uses the Low-Tech Dept TDD harness." >> "$AGENTS_MD"
-            echo "Read .claude/skills/lowtech-tdd/SKILL.md and the .claude/skills/lowtech-tdd/references/ directory before any code change." >> "$AGENTS_MD"
+            echo "# contractfirst" >> "$AGENTS_MD"
+            echo "This project uses the contractfirst harness." >> "$AGENTS_MD"
+            echo "Read .claude/skills/contractfirst/SKILL.md and the .claude/skills/contractfirst/references/ directory before any code change." >> "$AGENTS_MD"
         fi
         echo "  ✓ Imported in $AGENTS_MD"
     else
         echo "  ℹ Codex CLI not found — to add skill manually, add to AGENTS.md:"
-        echo "    Read .claude/skills/lowtech-tdd/SKILL.md and the .claude/skills/lowtech-tdd/references/ directory before any code change."
+        echo "    Read .claude/skills/contractfirst/SKILL.md and the .claude/skills/contractfirst/references/ directory before any code change."
     fi
 
     # ── Gemini CLI: GEMINI.md (supports @-import directive)
@@ -113,10 +113,10 @@ install_skill() {
             [[ -f "$candidate" ]] && GEMINI_MD="$candidate" && break
         done
         [[ -z "$GEMINI_MD" ]] && GEMINI_MD="$TARGET/GEMINI.md" && touch "$GEMINI_MD"
-        if ! grep -q "lowtech-tdd\|SKILL\.md" "$GEMINI_MD" 2>/dev/null; then
+        if ! grep -q "contractfirst\|SKILL\.md" "$GEMINI_MD" 2>/dev/null; then
             echo "" >> "$GEMINI_MD"
-            echo "# Low-Tech Dept TDD Harness" >> "$GEMINI_MD"
-            echo "@.claude/skills/lowtech-tdd/SKILL.md" >> "$GEMINI_MD"
+            echo "# contractfirst" >> "$GEMINI_MD"
+            echo "@.claude/skills/contractfirst/SKILL.md" >> "$GEMINI_MD"
         fi
         echo "  ✓ Imported in $GEMINI_MD"
     fi
@@ -126,7 +126,7 @@ install_skill() {
 install_mcp() {
     echo "→ Installing MCP server..."
 
-    MCP_DIR="$HOME/.local/share/lowtech-tdd-mcp"
+    MCP_DIR="$HOME/.local/share/contractfirst"
 
     # Clone or update
     if [[ -d "$MCP_DIR/.git" ]]; then
@@ -163,11 +163,11 @@ install_mcp() {
     # Register with Claude Code
     # Correct syntax: claude mcp add <name> [--scope <scope>] -- <command> [args...]
     if has claude; then
-        claude mcp add lowtech-tdd \
+        claude mcp add contractfirst \
             --scope project \
-            -- python -m lowtech_tdd_mcp.server 2>/dev/null \
+            -- python -m contractfirst.server 2>/dev/null \
             && echo "  ✓ Registered with Claude Code" \
-            || echo "  ⚠ Claude Code registration failed — run manually: claude mcp add lowtech-tdd --scope project -- python -m lowtech_tdd_mcp.server"
+            || echo "  ⚠ Claude Code registration failed — run manually: claude mcp add contractfirst --scope project -- python -m contractfirst.server"
     else
         echo "  ⚠ Claude Code not found — skipping registration"
     fi
@@ -176,12 +176,12 @@ install_mcp() {
     if has codex; then
         CODEX_CFG="$HOME/.codex/config.toml"
         if [[ -f "$CODEX_CFG" ]]; then
-            if ! grep -q "lowtech-tdd" "$CODEX_CFG"; then
+            if ! grep -q "contractfirst" "$CODEX_CFG"; then
                 cat >> "$CODEX_CFG" << 'EOF'
 
-[mcp_servers.lowtech-tdd]
+[mcp_servers.contractfirst]
 command = "python"
-args = ["-m", "lowtech_tdd_mcp.server"]
+args = ["-m", "contractfirst.server"]
 EOF
                 echo "  ✓ Registered with Codex CLI"
             else
@@ -190,16 +190,16 @@ EOF
         else
             echo "  ⚠ Codex config not found at $CODEX_CFG — run manually:"
             echo "    mkdir -p ~/.codex && cat >> ~/.codex/config.toml << 'TOML'"
-            echo "    [mcp_servers.lowtech-tdd]"
+            echo "    [mcp_servers.contractfirst]"
             echo "    command = \"python\""
-            echo "    args = [\"-m\", \"lowtech_tdd_mcp.server\"]"
+            echo "    args = [\"-m\", \"contractfirst.server\"]"
             echo "    TOML"
         fi
     else
         echo "  ℹ Codex CLI not found — to register MCP manually, add to ~/.codex/config.toml:"
-        echo "    [mcp_servers.lowtech-tdd]"
+        echo "    [mcp_servers.contractfirst]"
         echo "    command = \"python\""
-        echo "    args = [\"-m\", \"lowtech_tdd_mcp.server\"]"
+        echo "    args = [\"-m\", \"contractfirst.server\"]"
     fi
 
     # Register with Gemini CLI
@@ -214,10 +214,10 @@ try:
     cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
 except json.JSONDecodeError:
     cfg = {}
-if "lowtech-tdd" not in cfg.get("mcpServers", {}):
-    cfg.setdefault("mcpServers", {})["lowtech-tdd"] = {
+if "contractfirst" not in cfg.get("mcpServers", {}):
+    cfg.setdefault("mcpServers", {})["contractfirst"] = {
         "command": "python",
-        "args": ["-m", "lowtech_tdd_mcp.server"]
+        "args": ["-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     print("  ✓ Registered with Gemini CLI")

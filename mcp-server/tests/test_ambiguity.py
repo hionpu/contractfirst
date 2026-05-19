@@ -1,6 +1,6 @@
 import pytest
 
-from lowtech_tdd_mcp.ambiguity import score_ambiguity
+from contractfirst.ambiguity import score_ambiguity
 
 
 # A reusable evidence block that always satisfies the >=8 char requirement.
@@ -144,7 +144,7 @@ def test_gates_jsonl_written_when_project_root_given(tmp_path):
         blocking_questions=[],
         project_root=str(tmp_path),
     )
-    gates = tmp_path / ".lowtech-tdd" / "gates.jsonl"
+    gates = tmp_path / ".contractfirst" / "gates.jsonl"
     assert gates.is_file()
     content = gates.read_text(encoding="utf-8")
     assert "score_ambiguity" in content
