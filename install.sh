@@ -1,10 +1,13 @@
 #!/bin/bash
 # contractfirst installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/install.sh | bash
-# Or with options:
-#   bash install.sh --skill-only
-#   bash install.sh --mcp-only
-#   bash install.sh --target ./my-project
+# Options:
+#   --skill-only                    Install skill files only, skip MCP server
+#   --mcp-only                      Install MCP server only, skip skill files
+#   --target ./my-project           Install skill into a specific project directory
+#   --cli claude,codex,...          Install for specific CLI tools only
+#                                   Valid: claude, codex, gemini, pi, opencode
+#                                   Default: auto-detect from PATH
 
 set -e
 
@@ -13,6 +16,7 @@ RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"
 SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."
+CLI_LIST=""   # empty = auto-detect from PATH
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -20,6 +24,7 @@ while [[ $# -gt 0 ]]; do
         --skill-only) SKILL_ONLY=true; shift ;;
         --mcp-only)   MCP_ONLY=true;  shift ;;
         --target)     TARGET="$2";    shift 2 ;;
+        --cli)        CLI_LIST="$2";  shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -29,96 +34,105 @@ echo "║      contractfirst Setup       ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
-# ── Detect tools ──────────────────────────────────────────────
 has() { command -v "$1" &>/dev/null; }
+fetch() {
+    if has curl; then curl -fsSL "$1"
+    else wget -qO- "$1"; fi
+}
 
-if ! has curl && ! has wget; then
-    echo "Error: curl or wget required"; exit 1
+# Validate --cli list
+_VALID_CLIS="claude codex gemini pi opencode"
+if [[ -n "$CLI_LIST" ]]; then
+    for _name in $(echo "$CLI_LIST" | tr ',' ' '); do
+        _ok=false
+        for _v in $_VALID_CLIS; do [[ "$_name" == "$_v" ]] && _ok=true && break; done
+        if ! $_ok; then
+            echo "Error: unknown CLI tool '$_name'"
+            echo "Valid values: $_VALID_CLIS"
+            exit 1
+        fi
+    done
+    echo "Installing for: $(echo "$CLI_LIST" | tr ',' ' ')"
+else
+    echo "Auto-detecting installed CLI tools..."
 fi
+echo ""
 
-# python3 is required for the MCP server install and Codex/Gemini config edits.
-# Fail loudly up-front so we don't leave a partial install.
+# Check if a CLI tool is enabled for this install.
+# With --cli: explicit list. Without: detect binary in PATH.
+cli_enabled() {
+    local name="$1"
+    if [[ -z "$CLI_LIST" ]]; then
+        has "$name"
+    else
+        echo "$CLI_LIST" | tr ',' '\n' | grep -qx "$name"
+    fi
+}
+
+# python3 required for MCP server install and Gemini/opencode config edits
 if ! has python3 && ! $SKILL_ONLY; then
     echo "Error: python3 is required but not found in PATH"
     echo "Install Python 3.11+ and re-run."
     exit 1
 fi
 
-fetch() {
-    if has curl; then curl -fsSL "$1"
-    else wget -qO- "$1"; fi
-}
-
 # ── Install Skill ──────────────────────────────────────────────
 install_skill() {
-    echo "→ Installing skill..."
+    echo "→ Installing skill files..."
 
-    # Skill lives in its own subdirectory so it doesn't collide with other skills
     SKILL_DIR="$TARGET/.claude/skills/contractfirst"
     mkdir -p "$SKILL_DIR/references"
 
     fetch "$RAW/skill/SKILL.md" > "$SKILL_DIR/SKILL.md"
-
     for ref in slicing spec-template platforms test-onboarding links project-types architecture-patterns; do
         fetch "$RAW/skill/references/$ref.md" > "$SKILL_DIR/references/$ref.md"
     done
+    echo "  ✓ Skill files → $SKILL_DIR/"
 
-    # Detect CLAUDE.md / claude.md and append skill import if not already present
-    CLAUDE_MD=""
-    for candidate in "$TARGET/CLAUDE.md" "$TARGET/claude.md"; do
-        if [[ -f "$candidate" ]]; then
-            CLAUDE_MD="$candidate"; break
-        fi
-    done
-
-    if [[ -z "$CLAUDE_MD" ]]; then
-        CLAUDE_MD="$TARGET/CLAUDE.md"
-        touch "$CLAUDE_MD"
-    fi
-
-    if ! grep -q "contractfirst" "$CLAUDE_MD" 2>/dev/null; then
-        echo "" >> "$CLAUDE_MD"
-        echo "# contractfirst" >> "$CLAUDE_MD"
-        echo "@.claude/skills/contractfirst/SKILL.md" >> "$CLAUDE_MD"
-    fi
-
-    echo "  ✓ Skill installed → $SKILL_DIR/SKILL.md"
-    echo "  ✓ References installed → $SKILL_DIR/references/"
-    echo "  ✓ Imported in $CLAUDE_MD"
-
-    # ── Codex CLI: AGENTS.md (no @-import support — write a plain-text directive
-    # that Codex's agent will read literally from the concatenated AGENTS.md context)
-    if has codex; then
-        AGENTS_MD=""
-        for candidate in "$TARGET/AGENTS.md" "$TARGET/agents.md"; do
-            [[ -f "$candidate" ]] && AGENTS_MD="$candidate" && break
+    # ── Claude Code: CLAUDE.md with @-import
+    if cli_enabled claude; then
+        _md=""
+        for _c in "$TARGET/CLAUDE.md" "$TARGET/claude.md"; do
+            [[ -f "$_c" ]] && _md="$_c" && break
         done
-        [[ -z "$AGENTS_MD" ]] && AGENTS_MD="$TARGET/AGENTS.md" && touch "$AGENTS_MD"
-        if ! grep -q "contractfirst\|SKILL\.md" "$AGENTS_MD" 2>/dev/null; then
-            echo "" >> "$AGENTS_MD"
-            echo "# contractfirst" >> "$AGENTS_MD"
-            echo "This project uses the contractfirst harness." >> "$AGENTS_MD"
-            echo "Read .claude/skills/contractfirst/SKILL.md and the .claude/skills/contractfirst/references/ directory before any code change." >> "$AGENTS_MD"
+        [[ -z "$_md" ]] && _md="$TARGET/CLAUDE.md" && touch "$_md"
+        if ! grep -q "contractfirst" "$_md" 2>/dev/null; then
+            printf '\n# contractfirst\n@.claude/skills/contractfirst/SKILL.md\n' >> "$_md"
         fi
-        echo "  ✓ Imported in $AGENTS_MD"
-    else
-        echo "  ℹ Codex CLI not found — to add skill manually, add to AGENTS.md:"
-        echo "    Read .claude/skills/contractfirst/SKILL.md and the .claude/skills/contractfirst/references/ directory before any code change."
+        echo "  ✓ Imported in $_md (Claude Code)"
     fi
 
-    # ── Gemini CLI: GEMINI.md (supports @-import directive)
-    if has gemini; then
-        GEMINI_MD=""
-        for candidate in "$TARGET/GEMINI.md" "$TARGET/gemini.md"; do
-            [[ -f "$candidate" ]] && GEMINI_MD="$candidate" && break
+    # ── Codex / Pi / opencode: AGENTS.md with plain-text directive
+    if cli_enabled codex || cli_enabled pi || cli_enabled opencode; then
+        _md=""
+        for _c in "$TARGET/AGENTS.md" "$TARGET/agents.md"; do
+            [[ -f "$_c" ]] && _md="$_c" && break
         done
-        [[ -z "$GEMINI_MD" ]] && GEMINI_MD="$TARGET/GEMINI.md" && touch "$GEMINI_MD"
-        if ! grep -q "contractfirst\|SKILL\.md" "$GEMINI_MD" 2>/dev/null; then
-            echo "" >> "$GEMINI_MD"
-            echo "# contractfirst" >> "$GEMINI_MD"
-            echo "@.claude/skills/contractfirst/SKILL.md" >> "$GEMINI_MD"
+        [[ -z "$_md" ]] && _md="$TARGET/AGENTS.md" && touch "$_md"
+        if ! grep -q "contractfirst\|contractfirst/SKILL\.md" "$_md" 2>/dev/null; then
+            printf '\n# contractfirst\nThis project uses the contractfirst harness.\nRead .claude/skills/contractfirst/SKILL.md and the .claude/skills/contractfirst/references/ directory before any code change.\n' >> "$_md"
         fi
-        echo "  ✓ Imported in $GEMINI_MD"
+        _who=""
+        cli_enabled codex    && _who="${_who}Codex "
+        cli_enabled pi       && _who="${_who}Pi "
+        cli_enabled opencode && _who="${_who}opencode"
+        echo "  ✓ Imported in $_md (${_who% })"
+        if cli_enabled pi; then
+            echo "  ℹ Pi: skill loaded via AGENTS.md — Pi does not support MCP"
+        fi
+    fi
+
+    # ── Gemini CLI: GEMINI.md with @-import
+    if cli_enabled gemini; then
+        _md=""
+        for _c in "$TARGET/GEMINI.md" "$TARGET/gemini.md"; do
+            [[ -f "$_c" ]] && _md="$_c" && break
+        done
+        [[ -z "$_md" ]] && _md="$TARGET/GEMINI.md" && touch "$_md"
+        if ! grep -q "contractfirst\|contractfirst/SKILL\.md" "$_md" 2>/dev/null; then
+            printf '\n# contractfirst\n@.claude/skills/contractfirst/SKILL.md\n' >> "$_md"
+        fi
+        echo "  ✓ Imported in $_md (Gemini CLI)"
     fi
 }
 
@@ -128,7 +142,7 @@ install_mcp() {
 
     MCP_DIR="$HOME/.local/share/contractfirst"
 
-    # Clone or update
+    # Clone or update local install
     if [[ -d "$MCP_DIR/.git" ]]; then
         echo "  Updating existing install..."
         git -C "$MCP_DIR" pull --quiet
@@ -136,7 +150,7 @@ install_mcp() {
         git clone --quiet "$REPO" "$MCP_DIR"
     fi
 
-    # Install Python package — uv first (fast), fall back to pip if uv fails for any reason
+    # Install Python package — uv first, pip fallback
     _pkg_installed=false
     if has uv; then
         if uv pip install -e "$MCP_DIR/mcp-server" --system --quiet 2>/dev/null; then
@@ -157,57 +171,45 @@ install_mcp() {
             exit 1
         fi
     fi
+    echo "  ✓ Package installed → $MCP_DIR"
 
-    echo "  ✓ MCP server installed → $MCP_DIR"
-
-    # Register with Claude Code
-    # Correct syntax: claude mcp add <name> [--scope <scope>] -- <command> [args...]
-    if has claude; then
-        claude mcp add contractfirst \
-            --scope project \
-            -- python -m contractfirst.server 2>/dev/null \
-            && echo "  ✓ Registered with Claude Code" \
-            || echo "  ⚠ Claude Code registration failed — run manually: claude mcp add contractfirst --scope project -- python -m contractfirst.server"
-    else
-        echo "  ⚠ Claude Code not found — skipping registration"
+    # ── Claude Code
+    if cli_enabled claude; then
+        if has claude; then
+            claude mcp add contractfirst \
+                --scope project \
+                -- python -m contractfirst.server 2>/dev/null \
+                && echo "  ✓ Registered with Claude Code" \
+                || echo "  ⚠ Registration failed — run: claude mcp add contractfirst --scope project -- python -m contractfirst.server"
+        else
+            echo "  ⚠ claude binary not found — register manually:"
+            echo "    claude mcp add contractfirst --scope project -- python -m contractfirst.server"
+        fi
     fi
 
-    # Register with Codex CLI (config.toml, not config.json)
-    if has codex; then
+    # ── Codex CLI (~/.codex/config.toml)
+    if cli_enabled codex; then
+        mkdir -p "$HOME/.codex"
         CODEX_CFG="$HOME/.codex/config.toml"
-        if [[ -f "$CODEX_CFG" ]]; then
-            if ! grep -q "contractfirst" "$CODEX_CFG"; then
-                cat >> "$CODEX_CFG" << 'EOF'
+        [[ ! -f "$CODEX_CFG" ]] && touch "$CODEX_CFG"
+        if ! grep -q "contractfirst" "$CODEX_CFG" 2>/dev/null; then
+            cat >> "$CODEX_CFG" << 'EOF'
 
 [mcp_servers.contractfirst]
 command = "python"
 args = ["-m", "contractfirst.server"]
 EOF
-                echo "  ✓ Registered with Codex CLI"
-            else
-                echo "  ✓ Already registered with Codex CLI"
-            fi
+            echo "  ✓ Registered with Codex CLI (~/.codex/config.toml)"
         else
-            echo "  ⚠ Codex config not found at $CODEX_CFG — run manually:"
-            echo "    mkdir -p ~/.codex && cat >> ~/.codex/config.toml << 'TOML'"
-            echo "    [mcp_servers.contractfirst]"
-            echo "    command = \"python\""
-            echo "    args = [\"-m\", \"contractfirst.server\"]"
-            echo "    TOML"
+            echo "  ✓ Already registered with Codex CLI"
         fi
-    else
-        echo "  ℹ Codex CLI not found — to register MCP manually, add to ~/.codex/config.toml:"
-        echo "    [mcp_servers.contractfirst]"
-        echo "    command = \"python\""
-        echo "    args = [\"-m\", \"contractfirst.server\"]"
     fi
 
-    # Register with Gemini CLI
-    # Use Python's Path.home() instead of shell $HOME to avoid Git Bash path issues on Windows
-    # (Git Bash HOME is /c/Users/PSW but Windows Python needs C:/Users/PSW)
-    if has gemini; then
+    # ── Gemini CLI (~/.gemini/settings.json)
+    # Use Python Path.home() — avoids Git Bash /c/Users/... path issue on Windows
+    if cli_enabled gemini; then
         python3 - <<'PYEOF'
-import json, pathlib, sys
+import json, pathlib
 cfg_path = pathlib.Path.home() / ".gemini" / "settings.json"
 cfg_path.parent.mkdir(parents=True, exist_ok=True)
 try:
@@ -220,9 +222,36 @@ if "contractfirst" not in cfg.get("mcpServers", {}):
         "args": ["-m", "contractfirst.server"]
     }
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print("  ✓ Registered with Gemini CLI")
+    print("  ✓ Registered with Gemini CLI (~/.gemini/settings.json)")
 else:
     print("  ✓ Already registered with Gemini CLI")
+PYEOF
+    fi
+
+    # ── Pi: no MCP support
+    if cli_enabled pi; then
+        echo "  ℹ Pi does not support MCP — skill loaded via AGENTS.md only"
+    fi
+
+    # ── opencode (~/.config/opencode/opencode.json)
+    if cli_enabled opencode; then
+        python3 - <<'PYEOF'
+import json, pathlib
+cfg_path = pathlib.Path.home() / ".config" / "opencode" / "opencode.json"
+cfg_path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+except json.JSONDecodeError:
+    cfg = {}
+if "contractfirst" not in cfg.get("mcp", {}):
+    cfg.setdefault("mcp", {})["contractfirst"] = {
+        "type": "local",
+        "command": ["python", "-m", "contractfirst.server"]
+    }
+    cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print("  ✓ Registered with opencode (~/.config/opencode/opencode.json)")
+else:
+    print("  ✓ Already registered with opencode")
 PYEOF
     fi
 }
@@ -245,6 +274,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Lock contract files:  chmod 444 docs/specs/*.md docs/invariants/*.md"
 echo "  2. Add verify.sh to your project root"
-echo "  3. Start Claude Code in this directory — the harness is active"
+echo "  3. Open your CLI tool in this directory — the harness is active"
 echo ""
 echo "Docs: $REPO"

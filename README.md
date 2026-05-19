@@ -32,6 +32,21 @@ Installs both Skill and MCP server, and registers with whatever CLI tools are de
     # Install into a specific project directory
     curl -fsSL .../install.sh | bash -s -- --target ./my-project
 
+    # Install for specific CLI tools only (comma-separated)
+    curl -fsSL .../install.sh | bash -s -- --cli claude
+    curl -fsSL .../install.sh | bash -s -- --cli claude,codex
+    curl -fsSL .../install.sh | bash -s -- --cli claude,codex,gemini,pi,opencode
+
+Default (no `--cli`): auto-detects installed CLIs from PATH.
+
+| `--cli` value | Skill file | MCP config |
+|---|---|---|
+| `claude` | `CLAUDE.md` (`@`-import) | `claude mcp add` (project-scoped) |
+| `codex` | `AGENTS.md` (plain-text directive) | `~/.codex/config.toml` |
+| `gemini` | `GEMINI.md` (`@`-import) | `~/.gemini/settings.json` |
+| `pi` | `AGENTS.md` (plain-text directive) | — (Pi does not support MCP) |
+| `opencode` | `AGENTS.md` (plain-text directive) | `~/.config/opencode/opencode.json` |
+
 * * *
 
 One-liner Update
@@ -243,11 +258,13 @@ Repository Structure
 Supported CLI Tools
 -------------------
 
-| Tool        | Skill                                          | MCP                             |
-| ----------- | ---------------------------------------------- | ------------------------------- |
-| Claude Code | ✅ via `CLAUDE.md` (`@`-import)                 | ✅ via `claude mcp add`          |
-| Codex CLI   | ✅ via `AGENTS.md` (plain-text directive — no `@`-import support) | ✅ via `~/.codex/config.toml`    |
-| Gemini CLI  | ✅ via `GEMINI.md` (`@`-import)                 | ✅ via `~/.gemini/settings.json` |
+| Tool        | `--cli` value | Skill                                          | MCP                             |
+| ----------- | ------------- | ---------------------------------------------- | ------------------------------- |
+| Claude Code | `claude`      | ✅ via `CLAUDE.md` (`@`-import)                 | ✅ via `claude mcp add`          |
+| Codex CLI   | `codex`       | ✅ via `AGENTS.md` (plain-text directive)       | ✅ via `~/.codex/config.toml`    |
+| Gemini CLI  | `gemini`      | ✅ via `GEMINI.md` (`@`-import)                 | ✅ via `~/.gemini/settings.json` |
+| Pi          | `pi`          | ✅ via `AGENTS.md` (plain-text directive)       | ❌ Pi does not support MCP       |
+| opencode    | `opencode`    | ✅ via `AGENTS.md` (plain-text directive)       | ✅ via `~/.config/opencode/opencode.json` |
 
 * * *
 
