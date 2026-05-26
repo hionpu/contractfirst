@@ -11,7 +11,7 @@
 
 set -e
 
-SCRIPT_VERSION="2026-05-19 13:37"
+SCRIPT_VERSION="2026-05-26 15:25"
 
 REPO="https://github.com/hionpu/contractfirst"
 RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"

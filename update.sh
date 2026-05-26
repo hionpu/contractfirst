@@ -2,11 +2,11 @@
 # contractfirst updater
 # Usage: curl -fsSL https://raw.githubusercontent.com/hionpu/contractfirst/main/update.sh | bash
 # Or run directly from local install:
-#   bash ~/.local/share/contractfirst/update.sh [--skill-only] [--mcp-only] [--target ./my-project]
+#   bash ~/.local/share/contractfirst/update.sh [--skill-only] [--mcp-only] [--target ./my-project] [--cli claude,codex,...]
 
 set -e
 
-SCRIPT_VERSION="2026-05-19 13:37"
+SCRIPT_VERSION="2026-05-26 15:25"
 
 REPO="https://github.com/hionpu/contractfirst"
 RAW="https://raw.githubusercontent.com/hionpu/contractfirst/main"
@@ -14,6 +14,7 @@ MCP_DIR="$HOME/.local/share/contractfirst"
 SKILL_ONLY=false
 MCP_ONLY=false
 TARGET="."
+CLI_LIST=""   # empty = all installed tools
 REFS="slicing spec-template platforms test-onboarding links project-types architecture-patterns"
 
 while [[ $# -gt 0 ]]; do
@@ -21,6 +22,7 @@ while [[ $# -gt 0 ]]; do
         --skill-only) SKILL_ONLY=true; shift ;;
         --mcp-only)   MCP_ONLY=true;  shift ;;
         --target)     TARGET="$2";    shift 2 ;;
+        --cli)        CLI_LIST="$2";  shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -35,6 +37,32 @@ has() { command -v "$1" &>/dev/null; }
 fetch() {
     if has curl; then curl -fsSL "$1"
     else wget -qO- "$1"; fi
+}
+
+# Validate --cli list
+_VALID_CLIS="claude codex gemini pi opencode"
+if [[ -n "$CLI_LIST" ]]; then
+    for _name in $(echo "$CLI_LIST" | tr ',' ' '); do
+        _ok=false
+        for _v in $_VALID_CLIS; do [[ "$_name" == "$_v" ]] && _ok=true && break; done
+        if ! $_ok; then
+            echo "Error: unknown CLI tool '$_name'"
+            echo "Valid values: $_VALID_CLIS"
+            exit 1
+        fi
+    done
+    echo "Updating for: $(echo "$CLI_LIST" | tr ',' ' ')"
+fi
+echo ""
+
+# With --cli: explicit list. Without: update all installed dirs.
+cli_enabled() {
+    local name="$1"
+    if [[ -z "$CLI_LIST" ]]; then
+        return 0  # no filter → treat all as enabled
+    else
+        echo "$CLI_LIST" | tr ',' '\n' | grep -qx "$name"
+    fi
 }
 
 # ── Update MCP server ──────────────────────────────────────────
@@ -109,18 +137,21 @@ update_skill() {
     echo "→ Updating skill files..."
 
     SKILL_DIR="$TARGET/.claude/skills/contractfirst"
-    PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/lowtech-tdd}"
+    PI_SKILL_DIR="${PI_SKILL_DIR:-$HOME/.pi/agent/skills/contractfirst}"
     _updated=false
 
-    if [[ -d "$SKILL_DIR" ]]; then
+    # Shared skill dir — used by claude, codex, gemini, opencode (and pi via AGENTS.md)
+    _shared_needed=false
+    for _c in claude codex gemini opencode pi; do cli_enabled "$_c" && _shared_needed=true && break; done
+    if $_shared_needed && [[ -d "$SKILL_DIR" ]]; then
         update_skill_files "$SKILL_DIR"
         echo "  ✓ Skill updated → $SKILL_DIR/SKILL.md"
         echo "  ✓ References updated → $SKILL_DIR/references/"
         _updated=true
     fi
 
-    if [[ -d "$PI_SKILL_DIR" ]]; then
-        update_skill_files "$PI_SKILL_DIR" "lowtech-tdd"
+    if cli_enabled pi && [[ -d "$PI_SKILL_DIR" ]]; then
+        update_skill_files "$PI_SKILL_DIR"
         echo "  ✓ Pi native skill updated → $PI_SKILL_DIR/SKILL.md"
         _updated=true
     fi
